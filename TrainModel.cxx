@@ -1,6 +1,27 @@
+/*=========================================================================
+
+  Program:   Lesion Segmentation CLIs for Slicer4
+  Module:    $HeadURL$
+  Language:  C++
+  Date:      $Date$
+  Version:   $Revision$
+
+  Copyright (c) Biomedical Mining, LLC. All rights reserved.
+  See https://github.com/msscully/LesionSegmentation for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+#if defined(_MSC_VER)
+#pragma warning ( disable : 4786 )
+#endif
+
 #include <iostream>
 #include <vector>
 #include <utility>
+#include "itkPluginUtilities.h" 
 #include "itkImage.h"
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
@@ -10,10 +31,9 @@
 #include "itkPluginFilterWatcher.h"
 #include "itkImageToVectorImageFilter.h"
 #include "itkMaskImageFilter.h"
-#include "itkKdTreeGenerator.h"
 #include "itkImageRegionIteratorWithIndex.h"
 #include "itkInvertIntensityImageFilter.h"
-#include "itkAddImageAdaptor.h"
+#include "itkCastImageFilter.h"
 #include "TrainModelCLP.h"
 
 /* Use an anonymous namespace to keep class types and function names
@@ -24,8 +44,82 @@
 namespace
 {
 
-template <class T>
-int DoIt(int argc, char * argv [], T)
+typedef unsigned short      PixelType;
+const unsigned int          Dimension = 3;
+typedef itk::Image< PixelType,  Dimension >  ImageType;
+
+template<class DetectedPixelType> ImageType::Pointer castImage(std::string& imageFileName,DetectedPixelType)
+{
+  typedef itk::Image<DetectedPixelType,Dimension> DetectedImageType;
+  typedef itk::ImageFileReader< DetectedImageType  >  ImageReaderType;
+  typename ImageReaderType::Pointer imageReader = ImageReaderType::New();
+  imageReader->SetFileName(imageFileName);
+
+  typedef itk::CastImageFilter<DetectedImageType,ImageType> CastImageFilterType;
+  typename CastImageFilterType::Pointer castImageFilter = CastImageFilterType::New();
+  castImageFilter->SetInput(imageReader->GetOutput());
+  castImageFilter->Update();
+  typename ImageType::Pointer castImage = castImageFilter->GetOutput();
+
+  return castImage;
+}
+
+ImageType::Pointer ReadAndConvertImage(std::string& imageFileName)
+{
+  itk::ImageIOBase::IOPixelType     pixelType;
+  itk::ImageIOBase::IOComponentType componentType;
+
+  itk::GetImageType(imageFileName, pixelType, componentType);
+
+  try
+    {
+    switch (componentType)
+      {
+      case itk::ImageIOBase::UCHAR:
+        return castImage<unsigned char>(imageFileName,static_cast<unsigned char>(0));
+        break;
+      case itk::ImageIOBase::CHAR:
+        return castImage<char>(imageFileName,static_cast<char>(0));
+        break;
+      case itk::ImageIOBase::USHORT:
+        return castImage<unsigned short>(imageFileName,static_cast<unsigned short>(0));
+        break;
+      case itk::ImageIOBase::SHORT:
+        return castImage<short>(imageFileName,static_cast<short>(0));
+        break;
+      case itk::ImageIOBase::UINT:
+        return castImage<unsigned int>(imageFileName,static_cast<unsigned int>(0));
+        break;
+      case itk::ImageIOBase::INT:
+        return castImage<int>(imageFileName,static_cast<int>(0));
+        break;
+      case itk::ImageIOBase::ULONG:
+        return castImage<unsigned long>(imageFileName,static_cast<unsigned long>(0));
+        break;
+      case itk::ImageIOBase::LONG:
+        return castImage<long>(imageFileName,static_cast<long>(0));
+        break;
+      case itk::ImageIOBase::FLOAT:
+        return castImage<float>(imageFileName,static_cast<float>(0));
+        break;
+      case itk::ImageIOBase::DOUBLE:
+        return castImage<double>(imageFileName,static_cast<double>(0));
+        break;
+      case itk::ImageIOBase::UNKNOWNCOMPONENTTYPE:
+      default:
+        std::cout << "  ERROR: Unknown pixel type!" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+    }
+  catch( itk::ExceptionObject &excep)
+    {
+    std::cerr << ": exception caught !" << std::endl;
+    std::cerr << excep << std::endl;
+    exit(EXIT_FAILURE);
+    }
+}
+
+int DoIt(int argc, char * argv [])
 {
   PARSE_ARGS;
 
@@ -41,35 +135,27 @@ int DoIt(int argc, char * argv [], T)
     (inputT2Volumes.size() != inputFLAIRVolumes.size())) 
     { violated = true; std::cout << "  the number of files after --inputT1Volumes, --inputT2Volumes, --inputFLAIRVolumes, --inputLesionVolumes, and --inputMaskVolumes must all be equal! "  << std::endl;
     }
-  if (violated) exit(1);
-
-  typedef T PixelType;
-  const unsigned int Dimension = 3;
+  if (violated) exit(EXIT_FAILURE);
 
   typedef itk::Image< PixelType,  Dimension >   InputImageType;
   typedef itk::Image< float, Dimension > OutputImageType;
   typedef itk::ImageFileReader< InputImageType  >  ReaderType;
 
-  typename ReaderType::Pointer lesionArrayReader = ReaderType::New();
-  typename ReaderType::Pointer maskArrayReader = ReaderType::New();
-  typename ReaderType::Pointer flairArrayReader = ReaderType::New();
-  typename ReaderType::Pointer t1ArrayReader = ReaderType::New();
-  typename ReaderType::Pointer t2ArrayReader = ReaderType::New();
+  ReaderType::Pointer lesionArrayReader = ReaderType::New();
+  ReaderType::Pointer maskArrayReader = ReaderType::New();
 
-  typename InputImageType::Pointer LoadImage( std::string );
-   
   /* TODO Need to read in the images indicated by, inputIndexOfBestImages, build a joint histogram, 
    * then stash the histogram so it can be used to intensity standardize the images as they are loaded.
    * When loading these images again the intensity standardization step can be skipped.
    * */
 
   typedef itk::MaskImageFilter< InputImageType, InputImageType, InputImageType > MaskFilterType;
-  typename MaskFilterType::Pointer brainMaskFilter = MaskFilterType::New();
-  typename MaskFilterType::Pointer lesionMaskFilter = MaskFilterType::New();
-  typename MaskFilterType::Pointer nonLesionMaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer brainMaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer lesionMaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer nonLesionMaskFilter = MaskFilterType::New();
 
   typedef itk::InvertIntensityImageFilter< InputImageType, InputImageType > InvertFilterType;
-  typename InvertFilterType::Pointer invertFilter = InvertFilterType::New();
+  InvertFilterType::Pointer invertFilter = InvertFilterType::New();
 
   typedef itk::Vector< float, 6 > MeasurementVectorType ;
   typedef itk::Vector< unsigned short, 1 > LabelVectorType;
@@ -101,14 +187,11 @@ int DoIt(int argc, char * argv [], T)
     for (unsigned int i=0; i<inputFLAIRVolumes.size(); i++)
       {
       /* Load the ith training images */
-      t1ArrayReader->SetFileName( inputT1Volumes[i].c_str() );
-      t1ArrayReader->Modified();
+      InputImageType::Pointer t1Image = ReadAndConvertImage(inputT1Volumes[i]);
 
-      t2ArrayReader->SetFileName( inputT2Volumes[i].c_str() );
-      t2ArrayReader->Modified();
+      InputImageType::Pointer t2Image = ReadAndConvertImage(inputT2Volumes[i]);
 
-      flairArrayReader->SetFileName( inputFLAIRVolumes[i].c_str() );
-      flairArrayReader->Modified();
+      InputImageType::Pointer flairImage = ReadAndConvertImage(inputFLAIRVolumes[i]);
 
       maskArrayReader->SetFileName( inputMaskVolumes[i].c_str() );
       maskArrayReader->Modified();
@@ -117,7 +200,7 @@ int DoIt(int argc, char * argv [], T)
       lesionArrayReader->Modified();
 
       /* Brain mask the ith trianing flair */
-      brainMaskFilter->SetInput1( flairArrayReader->GetOutput() );
+      brainMaskFilter->SetInput1( flairImage );
       brainMaskFilter->SetInput2( maskArrayReader->GetOutput() );
       brainMaskFilter->SetOutsideValue( 0 );
       brainMaskFilter->Update();
@@ -167,7 +250,7 @@ int DoIt(int argc, char * argv [], T)
        */
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr) 
         { 
-        typename InputImageType::IndexType idx = flairItr.GetIndex();
+        InputImageType::IndexType idx = flairItr.GetIndex();
 
         trainMeans[0] += idx[0];
         trainMeans[1] += idx[1];
@@ -197,7 +280,7 @@ int DoIt(int argc, char * argv [], T)
        */
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr)
         {
-        typename InputImageType::IndexType idx = flairItr.GetIndex();
+        InputImageType::IndexType idx = flairItr.GetIndex();
 
         MeasurementVectorType tempMeasurement;
         tempMeasurement.SetElement( 0, (idx[0]-trainMeans[0])/trainSigmas[0] ); 
@@ -231,17 +314,61 @@ int DoIt(int argc, char * argv [], T)
 
 int main( int argc, char * argv[] )
 {
-    PARSE_ARGS;
+  PARSE_ARGS;
 
-    try
+  bool violated=false;
+  if (inputFLAIRVolumes.size() == 0) { violated = true; std::cout << "  --inputFLAIRVolumes Required! "  << std::endl; }
+  if (inputLesionVolumes.size() == 0) { violated = true; std::cout << "  --inputLesionVolumes Required! "  << std::endl; }
+  if (inputMaskVolumes.size() == 0) { violated = true; std::cout << "  --inputMaskVolumes Required! "  << std::endl; }
+  if (inputT1Volumes.size() == 0) { violated = true; std::cout << "  --inputT1Volumes Required! "  << std::endl; }
+  if (inputT2Volumes.size() == 0) { violated = true; std::cout << "  --inputT2Volumes Required! "  << std::endl; }
+  if ((inputFLAIRVolumes.size() != inputLesionVolumes.size()) && 
+    (inputMaskVolumes.size() != inputFLAIRVolumes.size()) &&
+    (inputT1Volumes.size() != inputFLAIRVolumes.size()) &&
+    (inputT2Volumes.size() != inputFLAIRVolumes.size())) 
+    { violated = true; std::cout << "  the number of files after --inputT1Volumes, --inputT2Volumes, --inputFLAIRVolumes, --inputLesionVolumes, and --inputMaskVolumes must all be equal! "  << std::endl;
+    }
+  if (violated) exit(EXIT_FAILURE);
+
+  itk::ImageIOBase::IOPixelType     pixelType;
+  itk::ImageIOBase::IOComponentType componentType;
+  itk::ImageIOBase::IOPixelType     firstPixelType;
+  itk::ImageIOBase::IOComponentType firstComponentType;
+
+  try
+    {
+
+    itk::GetImageType(inputFLAIRVolumes[0].c_str(), firstPixelType, firstComponentType);
+
+    for (unsigned int i=0; i<inputFLAIRVolumes.size(); i++)
       {
-      return DoIt( argc, argv, static_cast<unsigned char>(0) );
+      itk::GetImageType(inputFLAIRVolumes[i].c_str(),  pixelType, componentType);
+      if(firstComponentType != componentType)
+        {
+        std::cout << "  The pixel types of the input FLAIRs are not the same." << std::endl;
+        exit(EXIT_FAILURE);
+        }
+      itk::GetImageType(inputT1Volumes[i].c_str(),  pixelType, componentType);
+      if(firstComponentType != componentType)
+        {
+        std::cout << "  The pixel types of the input T1s are not the same, or do not match the pixel type of the FLAIRS." << std::endl;
+        exit(EXIT_FAILURE);
+        }
+      itk::GetImageType(inputT1Volumes[i].c_str(),  pixelType, componentType);
+      if(firstComponentType != componentType)
+        {
+        std::cout << "  The pixel types of the input T2s are not the same, or do not match the pixel type of the FLAIRS." << std::endl;
+        exit(EXIT_FAILURE);
+        }
       }
-    catch( itk::ExceptionObject & excep )
-      {
-      std::cerr << argv[0] << ": exception caught !" << std::endl;
-      std::cerr << excep << std::endl;
-      return EXIT_FAILURE;
-      }
-    return EXIT_SUCCESS;
+
+    return DoIt( argc, argv );
+    }
+  catch( itk::ExceptionObject & excep )
+    {
+    std::cerr << argv[0] << ": exception caught !" << std::endl;
+    std::cerr << excep << std::endl;
+    return EXIT_FAILURE;
+    }
+  return EXIT_SUCCESS;
 }
