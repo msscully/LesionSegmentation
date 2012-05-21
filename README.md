@@ -16,6 +16,7 @@ Checkout, Configure, and Build
 
 Slicer Integration
 ------------------
+Instructions coming soon...
 
 Copyright
 --------
