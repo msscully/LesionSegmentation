@@ -34,6 +34,16 @@
 #include "itkImageRegionIteratorWithIndex.h"
 #include "itkInvertIntensityImageFilter.h"
 #include "itkCastImageFilter.h"
+#include "itkBinaryBallStructuringElement.h"
+#include "itkGrayscaleDilateImageFilter.h"
+#include "itkFlipImageFilter.h"
+#include "itkSubtractImageFilter.h"
+#include "itkScalarImageKmeansImageFilter.h"
+#include "itkBinaryThresholdImageFilter.h"
+#include "itkLabelStatisticsImageFilter.h"
+#include "itkSignedMaurerDistanceMapImageFilter.h"
+#include "itkGrayscaleErodeImageFilter.h"
+#include "itkMedianImageFilter.h"
 #include "TrainModelCLP.h"
 
 /* Use an anonymous namespace to keep class types and function names
@@ -44,8 +54,8 @@
 namespace
 {
 
-typedef unsigned short      PixelType;
-const unsigned int          Dimension = 3;
+typedef short      PixelType;
+const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
 
 template<class DetectedPixelType> ImageType::Pointer castImage(std::string& imageFileName,DetectedPixelType)
@@ -137,9 +147,7 @@ int DoIt(int argc, char * argv [])
     }
   if (violated) exit(EXIT_FAILURE);
 
-  typedef itk::Image< PixelType,  Dimension >   InputImageType;
-  typedef itk::Image< float, Dimension > OutputImageType;
-  typedef itk::ImageFileReader< InputImageType  >  ReaderType;
+  typedef itk::ImageFileReader< ImageType  >  ReaderType;
 
   ReaderType::Pointer lesionArrayReader = ReaderType::New();
   ReaderType::Pointer maskArrayReader = ReaderType::New();
@@ -149,25 +157,21 @@ int DoIt(int argc, char * argv [])
    * When loading these images again the intensity standardization step can be skipped.
    * */
 
-  typedef itk::MaskImageFilter< InputImageType, InputImageType, InputImageType > MaskFilterType;
-  MaskFilterType::Pointer brainMaskFilter = MaskFilterType::New();
-  MaskFilterType::Pointer lesionMaskFilter = MaskFilterType::New();
-  MaskFilterType::Pointer nonLesionMaskFilter = MaskFilterType::New();
+  typedef itk::MaskImageFilter< ImageType, ImageType, ImageType > MaskFilterType;
+  MaskFilterType::Pointer flairMaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer t1MaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer clippedT1Filter = MaskFilterType::New();
 
-  typedef itk::InvertIntensityImageFilter< InputImageType, InputImageType > InvertFilterType;
-  InvertFilterType::Pointer invertFilter = InvertFilterType::New();
+  typedef itk::Vector< float, 10 > MeasurementVectorType ;
 
-  typedef itk::Vector< float, 6 > MeasurementVectorType ;
-  typedef itk::Vector< unsigned short, 1 > LabelVectorType;
-
-  MeasurementVectorType trainMeans;
-  MeasurementVectorType trainSigmas;
+  MeasurementVectorType trainMeans; trainMeans.Fill(0);
+  MeasurementVectorType trainSigmas; trainSigmas.Fill(0);
 
   typedef itk::Statistics::ListSample< MeasurementVectorType > ListSampleType;
   ListSampleType::Pointer lesionSamples = ListSampleType::New();
   ListSampleType::Pointer nonLesionSamples = ListSampleType::New();
 
-  typedef itk::ImageRegionIteratorWithIndex< InputImageType > ImageRegionIteratorType; 
+  typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageRegionIteratorType; 
 
   srand((unsigned)time(0)); 
 
@@ -181,44 +185,105 @@ int DoIt(int argc, char * argv [])
    ** sample list.
    */
 
+  typedef itk::BinaryBallStructuringElement<PixelType,Dimension > StructuringElementType;
+  StructuringElementType structuringElement2;  
+  structuringElement2.SetRadius( 2 ); 
+  structuringElement2.CreateStructuringElement();  
+
+  StructuringElementType structuringElement3;  
+  structuringElement3.SetRadius( 3 ); 
+  structuringElement3.CreateStructuringElement();  
+ 
+  typedef itk::GrayscaleDilateImageFilter< ImageType, ImageType, StructuringElementType > DilateFilterType; 
+  DilateFilterType::Pointer flairGrayscaleDilate2 = DilateFilterType::New();
+  flairGrayscaleDilate2->SetKernel( structuringElement2 );
+
+  typedef itk::FlipImageFilter <ImageType> FlipImageFilterType;
+  FlipImageFilterType::Pointer flipT1Filter = FlipImageFilterType::New();
+  FlipImageFilterType::FlipAxesArrayType flipAxes;
+  flipAxes[0] = true;
+  flipAxes[1] = false;
+  flipAxes[2] = false;
+
+  typedef itk::SubtractImageFilter <ImageType,ImageType> SubtractFilterType;
+  SubtractFilterType::Pointer subtractFilter = SubtractFilterType::New();
+
+  typedef itk::LabelStatisticsImageFilter< ImageType, ImageType > LabelStatisticsFilterType;
+  typedef LabelStatisticsFilterType::RealType StatisticRealType;
+  LabelStatisticsFilterType::Pointer statisticsFilter = LabelStatisticsFilterType::New();
+
+  typedef itk::ScalarImageKmeansImageFilter< ImageType > KMeansFilterType;
+  typedef KMeansFilterType::RealPixelType RealPixelType;
+  KMeansFilterType::Pointer kmeansFilter = KMeansFilterType::New();
+  typedef KMeansFilterType::OutputImageType LabelImageType;
+
+  // Used by KMeans
+  const PixelType imageExclusion = itk::NumericTraits<PixelType>::min( PixelType() );
+
+  typedef itk::CastImageFilter<LabelImageType,ImageType> CastFilterType;
+  CastFilterType::Pointer castFilter = CastFilterType::New();
+
+  typedef itk::BinaryThresholdImageFilter<LabelImageType,LabelImageType> BinaryThresholdLabelFilterType;
+  BinaryThresholdLabelFilterType::Pointer grayBinaryFilter = BinaryThresholdLabelFilterType::New();
+  BinaryThresholdLabelFilterType::Pointer whiteBinaryFilter = BinaryThresholdLabelFilterType::New();
+  BinaryThresholdLabelFilterType::Pointer csfBinaryFilter = BinaryThresholdLabelFilterType::New();
+ 
+  typedef itk::BinaryThresholdImageFilter<ImageType,ImageType> BinaryThresholdFilterType;
+  BinaryThresholdFilterType::Pointer maskBinaryFilter = BinaryThresholdFilterType::New();
+
+  typedef itk::SignedMaurerDistanceMapImageFilter< LabelImageType, LabelImageType> DistanceMapFilterType;
+  DistanceMapFilterType::Pointer grayDistanceMapFilter = DistanceMapFilterType::New();
+  DistanceMapFilterType::Pointer whiteDistanceMapFilter = DistanceMapFilterType::New();
+  typedef DistanceMapFilterType::OutputImageType DistanceMapImageType;
+
+  typedef itk::GrayscaleErodeImageFilter< ImageType, ImageType, StructuringElementType > ErodeFilterType; 
+  ErodeFilterType::Pointer flairGrayscaleErode3 = ErodeFilterType::New();
+  flairGrayscaleErode3->SetKernel( structuringElement3 );
+
+  typedef itk::MedianImageFilter< ImageType, ImageType > MedianFilterType;
+  MedianFilterType::Pointer flairMedian3Filter = MedianFilterType::New();
+
+  MedianFilterType::InputSizeType radius3;
+  radius3[0] = 3;
+  radius3[1] = 3;
+  radius3[2] = 3;
+
   try
     {
 
     for (unsigned int i=0; i<inputFLAIRVolumes.size(); i++)
       {
       /* Load the ith training images */
-      InputImageType::Pointer t1Image = ReadAndConvertImage(inputT1Volumes[i]);
+      ImageType::Pointer t1Image = ReadAndConvertImage(inputT1Volumes[i]);
+      ImageType::Pointer t2Image = ReadAndConvertImage(inputT2Volumes[i]);
+      ImageType::Pointer flairImage = ReadAndConvertImage(inputFLAIRVolumes[i]);
+      ImageType::Pointer tempMaskImage = ReadAndConvertImage(inputMaskVolumes[i]);
+      ImageType::Pointer lesionImage = ReadAndConvertImage(inputLesionVolumes[i]);
 
-      InputImageType::Pointer t2Image = ReadAndConvertImage(inputT2Volumes[i]);
+      maskBinaryFilter->SetInput( tempMaskImage );
+      maskBinaryFilter->SetLowerThreshold( 1 );
+      maskBinaryFilter->SetOutsideValue( 0 );
+      maskBinaryFilter->SetInsideValue( 1 );
+      maskBinaryFilter->Modified();
+      ImageType::Pointer maskImage = maskBinaryFilter->GetOutput();
+      
+      t1MaskFilter->SetInput1( t1Image );
+      t1MaskFilter->SetInput2( maskImage );
+      t1MaskFilter->SetOutsideValue(0);
+      t1MaskFilter->Modified();
+      t1MaskFilter->Update();
 
-      InputImageType::Pointer flairImage = ReadAndConvertImage(inputFLAIRVolumes[i]);
-
-      maskArrayReader->SetFileName( inputMaskVolumes[i].c_str() );
-      maskArrayReader->Modified();
-
-      lesionArrayReader->SetFileName( inputLesionVolumes[i].c_str() );
-      lesionArrayReader->Modified();
-
-      /* Brain mask the ith trianing flair */
-      brainMaskFilter->SetInput1( flairImage );
-      brainMaskFilter->SetInput2( maskArrayReader->GetOutput() );
-      brainMaskFilter->SetOutsideValue( 0 );
-      brainMaskFilter->Update();
+      flairMaskFilter->SetInput1( flairImage );
+      flairMaskFilter->SetInput2( maskImage );
+      flairMaskFilter->SetOutsideValue(0);
+      flairMaskFilter->Modified();
+      flairMaskFilter->Update();
 
       /* Iterate over the flair, get it's intensity and it's location.  Use those
        ** values to calculate the mean and standard deviation.  Iterate over the 
        ** flair again, zero-mean and sigma correct, and push the measurement vector
        ** onto a listsample.
        */
-
-      /* Use the ith training lesion map to mask the brain masked flair */
-      lesionMaskFilter->SetInput1( brainMaskFilter->GetOutput() );
-      //lesionMaskFilter->SetInput2( LoadImage( inputLesionVolumes[i].c_str() ) );
-      lesionMaskFilter->SetInput2( lesionArrayReader->GetOutput() );
-      lesionMaskFilter->SetOutsideValue( 0 );
-
-      /* Invert the ith training lesion mask to get all non lesions */
-      invertFilter->SetInput( lesionArrayReader->GetOutput() );
 
       /* Top 10 most informative features
          Dilate FLAIR radius=2
@@ -233,6 +298,78 @@ int DoIt(int argc, char * argv [])
          Median FLAIR radius=3
         */
 
+
+      flairGrayscaleDilate2->SetInput( flairMaskFilter->GetOutput() );
+      flairGrayscaleDilate2->Modified();
+      flairGrayscaleDilate2->Update();
+
+      flipT1Filter->SetInput( t1Image );
+      flipT1Filter->Modified();
+      flipT1Filter->Update();
+
+      subtractFilter->SetInput(1, t1Image );
+      subtractFilter->SetInput(2, flipT1Filter->GetOutput() );
+      subtractFilter->Modified();
+      subtractFilter->Update();
+
+      clippedT1Filter->SetInput1( t1Image );
+      clippedT1Filter->SetInput2( maskImage );
+      clippedT1Filter->SetOutsideValue( imageExclusion );
+      clippedT1Filter->Modified();
+      clippedT1Filter->Update();
+
+      statisticsFilter->SetInput( t1MaskFilter->GetOutput() );
+      statisticsFilter->SetLabelInput( maskImage );
+      statisticsFilter->Modified();
+      statisticsFilter->Update();
+
+      const StatisticRealType imageMean = statisticsFilter->GetMean( 1 );
+      const StatisticRealType imageSigma = statisticsFilter->GetSigma( 1 );
+
+      const RealPixelType csfInitialMean = imageMean - 2*imageSigma;
+      const RealPixelType whiteInitialMean = imageMean + imageSigma;
+      const RealPixelType grayInitialMean = imageMean - imageSigma/5;
+
+      RealPixelType backgroundInitialMean = imageExclusion;
+      kmeansFilter->AddClassWithInitialMean( backgroundInitialMean );
+      kmeansFilter->AddClassWithInitialMean( csfInitialMean );
+      kmeansFilter->AddClassWithInitialMean( grayInitialMean );
+      kmeansFilter->AddClassWithInitialMean( whiteInitialMean );
+      kmeansFilter->SetInput( clippedT1Filter->GetOutput() );
+      kmeansFilter->Modified();
+      castFilter->SetInput(kmeansFilter->GetOutput());
+      castFilter->Modified();
+      castFilter->Update();
+
+      grayBinaryFilter->SetInput(kmeansFilter->GetOutput());
+      grayBinaryFilter->SetLowerThreshold(2);
+      grayBinaryFilter->SetUpperThreshold(2);
+      grayBinaryFilter->Modified();
+      grayDistanceMapFilter->SetInput( grayBinaryFilter->GetOutput() );
+      grayDistanceMapFilter->UseImageSpacingOff();
+      grayDistanceMapFilter->SquaredDistanceOff();
+      grayDistanceMapFilter->Modified();
+      grayDistanceMapFilter->Update();
+
+      whiteBinaryFilter->SetInput(kmeansFilter->GetOutput());
+      whiteBinaryFilter->SetLowerThreshold(1);
+      whiteBinaryFilter->SetUpperThreshold(1);
+      whiteBinaryFilter->Modified();
+      whiteDistanceMapFilter->SetInput( whiteBinaryFilter->GetOutput() );
+      whiteDistanceMapFilter->UseImageSpacingOff();
+      whiteDistanceMapFilter->SquaredDistanceOff();
+      whiteDistanceMapFilter->Modified();
+      whiteDistanceMapFilter->Update();
+
+      flairGrayscaleErode3->SetInput( flairMaskFilter->GetOutput() );
+      flairGrayscaleErode3->Modified();
+      flairGrayscaleErode3->Update();
+
+      flairMedian3Filter->SetInput( flairMaskFilter->GetOutput() );
+      flairMedian3Filter->SetRadius( radius3 );
+      flairMedian3Filter->Modified();
+      flairMedian3Filter->Update();
+ 
       //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       /* The means and stds should be calculated over the lesion and non-lesion voxels
        ** at the same time, and then used seperately to get the lesion and non-lesion
@@ -241,7 +378,7 @@ int DoIt(int argc, char * argv [])
       //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       /* Iterator over the lesion masked, brain masked, flair */
-      ImageRegionIteratorType flairItr( brainMaskFilter->GetOutput(),brainMaskFilter->GetOutput()->GetRequestedRegion() ); 
+      ImageRegionIteratorType flairItr( flairMaskFilter->GetOutput(),flairMaskFilter->GetOutput()->GetRequestedRegion() ); 
 
       unsigned int count = 0;
 
@@ -250,43 +387,59 @@ int DoIt(int argc, char * argv [])
        */
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr) 
         { 
-        InputImageType::IndexType idx = flairItr.GetIndex();
+        ImageType::IndexType idx = flairItr.GetIndex();
 
         trainMeans[0] += idx[0];
         trainMeans[1] += idx[1];
         trainMeans[2] += idx[2];
-        trainMeans[3] += flairItr.Get();
+        trainMeans[3] += flairGrayscaleDilate2->GetOutput()->GetPixel(idx);
+        trainMeans[4] += subtractFilter->GetOutput()->GetPixel(idx);
+        trainMeans[5] += grayDistanceMapFilter->GetOutput()->GetPixel(idx);
+        trainMeans[6] += whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
+        trainMeans[7] += flairGrayscaleErode3->GetOutput()->GetPixel(idx);
+        trainMeans[8] += t2Image->GetPixel(idx);
+        trainMeans[9] += flairMedian3Filter->GetOutput()->GetPixel(idx);
 
-        trainSigmas[0] = idx[0] * idx[0];
-        trainSigmas[1] = idx[1] * idx[1];
-        trainSigmas[2] = idx[2] * idx[2];
-        trainSigmas[3] = flairItr.Get() * flairItr.Get();
+        trainSigmas[0] += idx[0] * idx[0];
+        trainSigmas[1] += idx[1] * idx[1];
+        trainSigmas[2] += idx[2] * idx[2];
+        trainSigmas[3] += flairGrayscaleDilate2->GetOutput()->GetPixel(idx) * flairGrayscaleDilate2->GetOutput()->GetPixel(idx) ;
+        trainSigmas[4] += subtractFilter->GetOutput()->GetPixel(idx) * subtractFilter->GetOutput()->GetPixel(idx);
+        trainSigmas[5] += grayDistanceMapFilter->GetOutput()->GetPixel(idx) * grayDistanceMapFilter->GetOutput()->GetPixel(idx);
+        trainSigmas[6] += whiteDistanceMapFilter->GetOutput()->GetPixel(idx) * whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
+        trainSigmas[7] += flairGrayscaleErode3->GetOutput()->GetPixel(idx) * flairGrayscaleErode3->GetOutput()->GetPixel(idx);
+        trainSigmas[8] += t2Image->GetPixel(idx) * t2Image->GetPixel(idx);
+        trainSigmas[9] += flairMedian3Filter->GetOutput()->GetPixel(idx) * flairMedian3Filter->GetOutput()->GetPixel(idx);
+
         ++count;
         }
 
-      trainMeans[0] /= count;
-      trainMeans[1] /= count;
-      trainMeans[2] /= count;
-      trainMeans[3] /= count;
-
-      trainSigmas[0] = sqrt((trainSigmas[0] / count) - (trainMeans[0]*trainMeans[0]));
-      trainSigmas[1] = sqrt((trainSigmas[1] / count) - (trainMeans[1]*trainMeans[1]));
-      trainSigmas[2] = sqrt((trainSigmas[2] / count) - (trainMeans[2]*trainMeans[2]));
-      trainSigmas[3] = sqrt((trainSigmas[3] / count) - (trainMeans[3]*trainMeans[3]));
-
+      for(unsigned int w=0;w<trainMeans.Size();w++)
+        {
+        trainMeans[w] = trainMeans[w] / count;
+        trainSigmas[w] = trainSigmas[w] / count;
+        trainSigmas[w] = sqrt(trainSigmas[w] - (trainMeans[w]*trainMeans[w]));
+        }
 
       /* Grab the index and value, zero-mean and sigma correct, create a measurement vector,
        ** and push it onto the list of samples while pushing the label onto the list of labels.
        */
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr)
         {
-        InputImageType::IndexType idx = flairItr.GetIndex();
+        ImageType::IndexType idx = flairItr.GetIndex();
 
-        MeasurementVectorType tempMeasurement;
+        MeasurementVectorType tempMeasurement; tempMeasurement.Fill(0);
+
         tempMeasurement.SetElement( 0, (idx[0]-trainMeans[0])/trainSigmas[0] ); 
         tempMeasurement.SetElement( 1, (idx[1]-trainMeans[1])/trainSigmas[1] ); 
         tempMeasurement.SetElement( 2, (idx[2]-trainMeans[2])/trainSigmas[2] ); 
         tempMeasurement.SetElement( 3, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 4, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 5, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 6, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 7, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 8, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 9, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
         
         if(maskArrayReader->GetOutput()->GetPixel(idx) !=0)          
           {
@@ -298,8 +451,6 @@ int DoIt(int argc, char * argv [])
           }
         } 
       }
-
-
 
     }
   catch (itk::ExceptionObject &excep)
@@ -330,38 +481,8 @@ int main( int argc, char * argv[] )
     }
   if (violated) exit(EXIT_FAILURE);
 
-  itk::ImageIOBase::IOPixelType     pixelType;
-  itk::ImageIOBase::IOComponentType componentType;
-  itk::ImageIOBase::IOPixelType     firstPixelType;
-  itk::ImageIOBase::IOComponentType firstComponentType;
-
   try
     {
-
-    itk::GetImageType(inputFLAIRVolumes[0].c_str(), firstPixelType, firstComponentType);
-
-    for (unsigned int i=0; i<inputFLAIRVolumes.size(); i++)
-      {
-      itk::GetImageType(inputFLAIRVolumes[i].c_str(),  pixelType, componentType);
-      if(firstComponentType != componentType)
-        {
-        std::cout << "  The pixel types of the input FLAIRs are not the same." << std::endl;
-        exit(EXIT_FAILURE);
-        }
-      itk::GetImageType(inputT1Volumes[i].c_str(),  pixelType, componentType);
-      if(firstComponentType != componentType)
-        {
-        std::cout << "  The pixel types of the input T1s are not the same, or do not match the pixel type of the FLAIRS." << std::endl;
-        exit(EXIT_FAILURE);
-        }
-      itk::GetImageType(inputT1Volumes[i].c_str(),  pixelType, componentType);
-      if(firstComponentType != componentType)
-        {
-        std::cout << "  The pixel types of the input T2s are not the same, or do not match the pixel type of the FLAIRS." << std::endl;
-        exit(EXIT_FAILURE);
-        }
-      }
-
     return DoIt( argc, argv );
     }
   catch( itk::ExceptionObject & excep )
