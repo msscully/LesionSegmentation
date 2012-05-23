@@ -29,7 +29,7 @@ configure_file(
   )
 
 #-----------------------------------------------------------------------------
-#add_subdirectory(Logic)
+add_subdirectory(ann_1.1.2)
 
 #-----------------------------------------------------------------------------
 set(cli_module_include_directories
@@ -40,6 +40,7 @@ set(cli_module_SRCS
 
 set(cli_module_target_libraries
   ${ITK_LIBRARIES}
+  ANN
   )
 
 #-----------------------------------------------------------------------------
