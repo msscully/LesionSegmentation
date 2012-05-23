@@ -44,6 +44,8 @@
 #include "itkSignedMaurerDistanceMapImageFilter.h"
 #include "itkGrayscaleErodeImageFilter.h"
 #include "itkMedianImageFilter.h"
+#include "itkHistogramMatchingImageFilter.h"
+#include "itkStatisticsImageFilter.h"
 #include "TrainModelCLP.h"
 
 /* Use an anonymous namespace to keep class types and function names
@@ -57,6 +59,8 @@ namespace
 typedef short      PixelType;
 const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
+
+const PixelType imageExclusion = itk::NumericTraits<PixelType>::min( PixelType() );
 
 template<class DetectedPixelType> ImageType::Pointer castImage(std::string& imageFileName,DetectedPixelType)
 {
@@ -129,6 +133,36 @@ ImageType::Pointer ReadAndConvertImage(std::string& imageFileName)
     }
 }
 
+ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::Pointer movingImage)
+{
+  unsigned long numMatchPoints = 1000;
+
+  typedef itk::HistogramMatchingImageFilter< ImageType, ImageType> HistogramMatchingFilterType;
+  HistogramMatchingFilterType::Pointer histogramMatchingFilter = HistogramMatchingFilterType::New();
+
+  typedef HistogramMatchingFilterType::OutputImageType HistMatchType;
+
+  typedef itk::StatisticsImageFilter< ImageType > StatisticsFilterType;
+  StatisticsFilterType::Pointer statisticsFilter = StatisticsFilterType::New();
+  typedef itk::CastImageFilter< HistMatchType,ImageType > CastFilterType;
+  CastFilterType::Pointer castFilter = CastFilterType::New();
+
+  unsigned long numOfBins = 0;
+
+  statisticsFilter->SetInput(movingImage);
+  statisticsFilter->Update();
+  numOfBins = statisticsFilter->GetMaximum() - statisticsFilter->GetMinimum() + 1;
+
+  histogramMatchingFilter->SetSourceImage(movingImage);
+  histogramMatchingFilter->SetSourceImage(referenceImage);
+  histogramMatchingFilter->SetNumberOfHistogramLevels(numOfBins);
+  histogramMatchingFilter->SetNumberOfMatchPoints(numMatchPoints);
+
+  castFilter->SetInput(histogramMatchingFilter->GetOutput());
+  castFilter->Update();
+  return castFilter->GetOutput();
+}
+
 int DoIt(int argc, char * argv [])
 {
   PARSE_ARGS;
@@ -160,7 +194,11 @@ int DoIt(int argc, char * argv [])
   typedef itk::MaskImageFilter< ImageType, ImageType, ImageType > MaskFilterType;
   MaskFilterType::Pointer flairMaskFilter = MaskFilterType::New();
   MaskFilterType::Pointer t1MaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer t2MaskFilter = MaskFilterType::New();
   MaskFilterType::Pointer clippedT1Filter = MaskFilterType::New();
+  MaskFilterType::Pointer refT1MaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer refT2MaskFilter = MaskFilterType::New();
+  MaskFilterType::Pointer refFLAIRMaskFilter = MaskFilterType::New();
 
   typedef itk::Vector< float, 10 > MeasurementVectorType ;
 
@@ -179,6 +217,32 @@ int DoIt(int argc, char * argv [])
     {
     inputPercentNonLesion = floor(100/(inputFLAIRVolumes.size()*2));
     }
+
+  typedef itk::BinaryThresholdImageFilter<ImageType,ImageType> BinaryThresholdFilterType;
+  BinaryThresholdFilterType::Pointer maskBinaryFilter = BinaryThresholdFilterType::New();
+
+  // Indexes are -1 because the input is 1 indexed, not zero indexed.
+  ImageType::Pointer refT1 = ReadAndConvertImage(inputT1Volumes[inputIndexOfBestImages-1]);
+  ImageType::Pointer refT2 = ReadAndConvertImage(inputT2Volumes[inputIndexOfBestImages-1]);
+  ImageType::Pointer refFLAIR = ReadAndConvertImage(inputFLAIRVolumes[inputIndexOfBestImages-1]);
+  ImageType::Pointer refMask = ReadAndConvertImage(inputMaskVolumes[inputIndexOfBestImages-1]);
+
+  maskBinaryFilter->SetInput( refMask );
+  maskBinaryFilter->SetLowerThreshold( 1 );
+  maskBinaryFilter->SetOutsideValue( 0 );
+  maskBinaryFilter->SetInsideValue( 1 );
+
+  refT1MaskFilter->SetInput1(refT1);
+  refT1MaskFilter->SetInput2(maskBinaryFilter->GetOutput());
+  refT1MaskFilter->Update();
+
+  refT2MaskFilter->SetInput1(refT2);
+  refT2MaskFilter->SetInput2(maskBinaryFilter->GetOutput());
+  refT2MaskFilter->Update();
+
+  refFLAIRMaskFilter->SetInput1(refFLAIR);
+  refFLAIRMaskFilter->SetInput2(maskBinaryFilter->GetOutput());
+  refFLAIRMaskFilter->Update();
 
   /* Need to loop over all the input images, brain mask them, combine the flair and lesion
    ** values into a vector image, calculate stats, normalize the data, and construct a 
@@ -217,9 +281,6 @@ int DoIt(int argc, char * argv [])
   KMeansFilterType::Pointer kmeansFilter = KMeansFilterType::New();
   typedef KMeansFilterType::OutputImageType LabelImageType;
 
-  // Used by KMeans
-  const PixelType imageExclusion = itk::NumericTraits<PixelType>::min( PixelType() );
-
   typedef itk::CastImageFilter<LabelImageType,ImageType> CastFilterType;
   CastFilterType::Pointer castFilter = CastFilterType::New();
 
@@ -227,9 +288,6 @@ int DoIt(int argc, char * argv [])
   BinaryThresholdLabelFilterType::Pointer grayBinaryFilter = BinaryThresholdLabelFilterType::New();
   BinaryThresholdLabelFilterType::Pointer whiteBinaryFilter = BinaryThresholdLabelFilterType::New();
   BinaryThresholdLabelFilterType::Pointer csfBinaryFilter = BinaryThresholdLabelFilterType::New();
- 
-  typedef itk::BinaryThresholdImageFilter<ImageType,ImageType> BinaryThresholdFilterType;
-  BinaryThresholdFilterType::Pointer maskBinaryFilter = BinaryThresholdFilterType::New();
 
   typedef itk::SignedMaurerDistanceMapImageFilter< LabelImageType, LabelImageType> DistanceMapFilterType;
   DistanceMapFilterType::Pointer grayDistanceMapFilter = DistanceMapFilterType::New();
@@ -273,11 +331,21 @@ int DoIt(int argc, char * argv [])
       t1MaskFilter->Modified();
       t1MaskFilter->Update();
 
+      t2MaskFilter->SetInput1( t2Image );
+      t2MaskFilter->SetInput2( maskImage );
+      t2MaskFilter->SetOutsideValue(0);
+      t2MaskFilter->Modified();
+      t2MaskFilter->Update();
+
       flairMaskFilter->SetInput1( flairImage );
       flairMaskFilter->SetInput2( maskImage );
       flairMaskFilter->SetOutsideValue(0);
       flairMaskFilter->Modified();
       flairMaskFilter->Update();
+
+      ImageType::Pointer t1ImageHistMatched = HistogramMatch(refT1MaskFilter->GetOutput(),t1MaskFilter->GetOutput());
+      ImageType::Pointer t2ImageHistMatched = HistogramMatch(refT2MaskFilter->GetOutput(),t2MaskFilter->GetOutput());
+      ImageType::Pointer flairImageHistMatched = HistogramMatch(refFLAIRMaskFilter->GetOutput(),flairMaskFilter->GetOutput());
 
       /* Iterate over the flair, get it's intensity and it's location.  Use those
        ** values to calculate the mean and standard deviation.  Iterate over the 
@@ -299,7 +367,7 @@ int DoIt(int argc, char * argv [])
         */
 
 
-      flairGrayscaleDilate2->SetInput( flairMaskFilter->GetOutput() );
+      flairGrayscaleDilate2->SetInput( flairImageHistMatched );
       flairGrayscaleDilate2->Modified();
       flairGrayscaleDilate2->Update();
 
@@ -307,18 +375,18 @@ int DoIt(int argc, char * argv [])
       flipT1Filter->Modified();
       flipT1Filter->Update();
 
-      subtractFilter->SetInput(1, t1Image );
+      subtractFilter->SetInput(1, t1ImageHistMatched );
       subtractFilter->SetInput(2, flipT1Filter->GetOutput() );
       subtractFilter->Modified();
       subtractFilter->Update();
 
-      clippedT1Filter->SetInput1( t1Image );
+      clippedT1Filter->SetInput1( t1ImageHistMatched );
       clippedT1Filter->SetInput2( maskImage );
       clippedT1Filter->SetOutsideValue( imageExclusion );
       clippedT1Filter->Modified();
       clippedT1Filter->Update();
 
-      statisticsFilter->SetInput( t1MaskFilter->GetOutput() );
+      statisticsFilter->SetInput( t1ImageHistMatched );
       statisticsFilter->SetLabelInput( maskImage );
       statisticsFilter->Modified();
       statisticsFilter->Update();
@@ -361,11 +429,11 @@ int DoIt(int argc, char * argv [])
       whiteDistanceMapFilter->Modified();
       whiteDistanceMapFilter->Update();
 
-      flairGrayscaleErode3->SetInput( flairMaskFilter->GetOutput() );
+      flairGrayscaleErode3->SetInput( flairImageHistMatched );
       flairGrayscaleErode3->Modified();
       flairGrayscaleErode3->Update();
 
-      flairMedian3Filter->SetInput( flairMaskFilter->GetOutput() );
+      flairMedian3Filter->SetInput( flairImageHistMatched );
       flairMedian3Filter->SetRadius( radius3 );
       flairMedian3Filter->Modified();
       flairMedian3Filter->Update();
@@ -378,7 +446,7 @@ int DoIt(int argc, char * argv [])
       //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       /* Iterator over the lesion masked, brain masked, flair */
-      ImageRegionIteratorType flairItr( flairMaskFilter->GetOutput(),flairMaskFilter->GetOutput()->GetRequestedRegion() ); 
+      ImageRegionIteratorType flairItr( flairImageHistMatched,flairImageHistMatched->GetRequestedRegion() ); 
 
       unsigned int count = 0;
 
@@ -397,7 +465,7 @@ int DoIt(int argc, char * argv [])
         trainMeans[5] += grayDistanceMapFilter->GetOutput()->GetPixel(idx);
         trainMeans[6] += whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
         trainMeans[7] += flairGrayscaleErode3->GetOutput()->GetPixel(idx);
-        trainMeans[8] += t2Image->GetPixel(idx);
+        trainMeans[8] += t2ImageHistMatched->GetPixel(idx);
         trainMeans[9] += flairMedian3Filter->GetOutput()->GetPixel(idx);
 
         trainSigmas[0] += idx[0] * idx[0];
@@ -408,7 +476,7 @@ int DoIt(int argc, char * argv [])
         trainSigmas[5] += grayDistanceMapFilter->GetOutput()->GetPixel(idx) * grayDistanceMapFilter->GetOutput()->GetPixel(idx);
         trainSigmas[6] += whiteDistanceMapFilter->GetOutput()->GetPixel(idx) * whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
         trainSigmas[7] += flairGrayscaleErode3->GetOutput()->GetPixel(idx) * flairGrayscaleErode3->GetOutput()->GetPixel(idx);
-        trainSigmas[8] += t2Image->GetPixel(idx) * t2Image->GetPixel(idx);
+        trainSigmas[8] += t2ImageHistMatched->GetPixel(idx) * t2ImageHistMatched->GetPixel(idx);
         trainSigmas[9] += flairMedian3Filter->GetOutput()->GetPixel(idx) * flairMedian3Filter->GetOutput()->GetPixel(idx);
 
         ++count;
@@ -433,13 +501,13 @@ int DoIt(int argc, char * argv [])
         tempMeasurement.SetElement( 0, (idx[0]-trainMeans[0])/trainSigmas[0] ); 
         tempMeasurement.SetElement( 1, (idx[1]-trainMeans[1])/trainSigmas[1] ); 
         tempMeasurement.SetElement( 2, (idx[2]-trainMeans[2])/trainSigmas[2] ); 
-        tempMeasurement.SetElement( 3, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 4, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 5, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 6, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 7, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 8, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 9, (flairItr.Get()-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 3, (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 4, (subtractFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 5, (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 6, (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 7, (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 8, (t2ImageHistMatched->GetPixel(idx) -trainMeans[3]-1)/trainSigmas[3] ); 
+        tempMeasurement.SetElement( 9, (flairMedian3Filter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
         
         if(maskArrayReader->GetOutput()->GetPixel(idx) !=0)          
           {
