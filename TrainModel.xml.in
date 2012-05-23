@@ -64,7 +64,7 @@
   </parameters>
 
   <parameters>
-    <label>Advanced Optionss</label>
+    <label>Advanced Options</label>
     <description>Advanced input parameters</description>
 
     <integer>
