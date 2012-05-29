@@ -46,7 +46,7 @@
 #include "itkMedianImageFilter.h"
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
-#include "ann_1.1.2/include/ANN/ANN.h"
+#include "flann/flann.hpp"
 #include "TrainModelCLP.h"
 
 /* Use an anonymous namespace to keep class types and function names

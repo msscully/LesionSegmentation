@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8.7)
 
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
+
 set(MODULE_NAME TrainModel)
 
 if(NOT Slicer_SOURCE_DIR)
@@ -29,10 +31,13 @@ configure_file(
   )
 
 #-----------------------------------------------------------------------------
-add_subdirectory(ann_1.1.2)
+# FLANN (required)
+find_package(Flann REQUIRED)
 
 #-----------------------------------------------------------------------------
+
 set(cli_module_include_directories
+	${FLANN_INCLUDE_DIRS}
   )
 
 set(cli_module_SRCS
@@ -40,7 +45,7 @@ set(cli_module_SRCS
 
 set(cli_module_target_libraries
   ${ITK_LIBRARIES}
-  ANN
+  ${FLANN_LIBRARY}
   )
 
 #-----------------------------------------------------------------------------
