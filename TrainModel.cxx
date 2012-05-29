@@ -57,6 +57,7 @@
 namespace
 {
 
+const unsigned char num_features = 10;
 typedef short      PixelType;
 const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
@@ -201,16 +202,16 @@ int DoIt(int argc, char * argv [])
   MaskFilterType::Pointer refT2MaskFilter = MaskFilterType::New();
   MaskFilterType::Pointer refFLAIRMaskFilter = MaskFilterType::New();
 
-  typedef itk::Vector< float, 10 > MeasurementVectorType ;
+  typedef itk::Vector< float, num_features > MeasurementVectorType ;
 
   MeasurementVectorType trainMeans; trainMeans.Fill(0);
   MeasurementVectorType trainSigmas; trainSigmas.Fill(0);
   MeasurementVectorType trainMins; trainMins.Fill(0);
   MeasurementVectorType trainMaxes; trainMaxes.Fill(0);
 
-  typedef itk::Statistics::ListSample< MeasurementVectorType > ListSampleType;
-  ListSampleType::Pointer lesionSamples = ListSampleType::New();
-  ListSampleType::Pointer nonLesionSamples = ListSampleType::New();
+  std::vector< bool > sampleLabels;
+
+  std::vector< MeasurementVectorType > trainingSamples;
 
   typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageRegionIteratorType; 
 
@@ -356,7 +357,7 @@ int DoIt(int argc, char * argv [])
        ** onto a listsample.
        */
 
-      /* Top 10 most informative features
+      /* Top num_features (10) most informative features
          Dilate FLAIR radius=2
          T1w flipped difference
          Normalized Z location
@@ -519,17 +520,43 @@ int DoIt(int argc, char * argv [])
         tempMeasurement.SetElement( 8, (t2ImageHistMatched->GetPixel(idx) -trainMeans[3]-1)/trainSigmas[3] ); 
         tempMeasurement.SetElement( 9, (flairMedian3Filter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
         
+
         if(maskArrayReader->GetOutput()->GetPixel(idx) !=0)          
           {
-          lesionSamples->PushBack(tempMeasurement);
+          trainingSamples.push_back(tempMeasurement);
+          sampleLabels.push_back(true);
           }
         else if ((rand()%100+1) <= inputPercentNonLesion) /* We only want a fraction of non-lesion voxels */
           {
-          nonLesionSamples->PushBack(tempMeasurement);
+          trainingSamples.push_back(tempMeasurement);
+          sampleLabels.push_back(false);
           }
         } 
       }
 
+    MeasurementVectorType signedRangeInverse; signedRangeInverse.Fill(0);
+
+    for( unsigned int i = 0; i<trainMins.Size(); i++)
+      {
+      signedRangeInverse[i] = 2 / (trainMaxes[i]-trainMins[i]);
+      }
+
+    const size_t num_samples = trainingSamples.size();
+
+    typedef flann::Matrix< float > FlannMatrixType;
+    FlannMatrixType treeDataset = FlannMatrixType(new float[num_samples*num_features], num_samples, num_features);
+    for( unsigned int i=0; i<num_samples; i++)
+      {
+      for( unsigned int j=0; j<num_features; j++)
+        {
+        treeDataset[i][j] = signedRangeInverse[i] * (trainingSamples[i][j] - trainMins[i]) - 1;
+        }
+      }
+
+    flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::AutotunedIndexParams() );
+    flannIndex.buildIndex();                                                                                               
+
+    delete[] treeDataset.ptr();
     }
   catch (itk::ExceptionObject &excep)
     {
