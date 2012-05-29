@@ -205,6 +205,8 @@ int DoIt(int argc, char * argv [])
 
   MeasurementVectorType trainMeans; trainMeans.Fill(0);
   MeasurementVectorType trainSigmas; trainSigmas.Fill(0);
+  MeasurementVectorType trainMins; trainMins.Fill(0);
+  MeasurementVectorType trainMaxes; trainMaxes.Fill(0);
 
   typedef itk::Statistics::ListSample< MeasurementVectorType > ListSampleType;
   ListSampleType::Pointer lesionSamples = ListSampleType::New();
@@ -454,36 +456,43 @@ int DoIt(int argc, char * argv [])
       /* First pass is to calculate the mean and standard deviation of the x, y, z
        ** voxel locations and the mean and std of the flair intensity.
        */
+      MeasurementVectorType tempSamples; tempSamples.Fill(0);
+
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr) 
         { 
         ImageType::IndexType idx = flairItr.GetIndex();
 
-        trainMeans[0] += idx[0];
-        trainMeans[1] += idx[1];
-        trainMeans[2] += idx[2];
-        trainMeans[3] += flairGrayscaleDilate2->GetOutput()->GetPixel(idx);
-        trainMeans[4] += subtractFilter->GetOutput()->GetPixel(idx);
-        trainMeans[5] += grayDistanceMapFilter->GetOutput()->GetPixel(idx);
-        trainMeans[6] += whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
-        trainMeans[7] += flairGrayscaleErode3->GetOutput()->GetPixel(idx);
-        trainMeans[8] += t2ImageHistMatched->GetPixel(idx);
-        trainMeans[9] += flairMedian3Filter->GetOutput()->GetPixel(idx);
+        //TODO: Push features onto a vector so all of these can be done in loops.
+        tempSamples[0] = idx[0];
+        tempSamples[1] = idx[1];
+        tempSamples[2] = idx[2];
+        tempSamples[3] = flairGrayscaleDilate2->GetOutput()->GetPixel(idx);
+        tempSamples[4] = subtractFilter->GetOutput()->GetPixel(idx);
+        tempSamples[5] = grayDistanceMapFilter->GetOutput()->GetPixel(idx);
+        tempSamples[6] = whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
+        tempSamples[7] = flairGrayscaleErode3->GetOutput()->GetPixel(idx);
+        tempSamples[8] = t2ImageHistMatched->GetPixel(idx);
+        tempSamples[9] = flairMedian3Filter->GetOutput()->GetPixel(idx);
 
-        trainSigmas[0] += idx[0] * idx[0];
-        trainSigmas[1] += idx[1] * idx[1];
-        trainSigmas[2] += idx[2] * idx[2];
-        trainSigmas[3] += flairGrayscaleDilate2->GetOutput()->GetPixel(idx) * flairGrayscaleDilate2->GetOutput()->GetPixel(idx) ;
-        trainSigmas[4] += subtractFilter->GetOutput()->GetPixel(idx) * subtractFilter->GetOutput()->GetPixel(idx);
-        trainSigmas[5] += grayDistanceMapFilter->GetOutput()->GetPixel(idx) * grayDistanceMapFilter->GetOutput()->GetPixel(idx);
-        trainSigmas[6] += whiteDistanceMapFilter->GetOutput()->GetPixel(idx) * whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
-        trainSigmas[7] += flairGrayscaleErode3->GetOutput()->GetPixel(idx) * flairGrayscaleErode3->GetOutput()->GetPixel(idx);
-        trainSigmas[8] += t2ImageHistMatched->GetPixel(idx) * t2ImageHistMatched->GetPixel(idx);
-        trainSigmas[9] += flairMedian3Filter->GetOutput()->GetPixel(idx) * flairMedian3Filter->GetOutput()->GetPixel(idx);
+        for( unsigned int i=0; i<tempSamples.Size(); i++ )
+          {
+          trainMeans[i] += tempSamples[i];
+          trainSigmas[i] += tempSamples[i] * tempSamples[i];
 
+          if( tempSamples[i] < trainMins[i] )
+            {
+            trainMins[i] = tempSamples[i];
+            }
+          if(tempSamples[i] > trainMaxes[i])
+            {
+            trainMaxes[i] = tempSamples[i];
+            }
+          }
+        
         ++count;
         }
 
-      for(unsigned int w=0;w<trainMeans.Size();w++)
+      for( unsigned int w=0; w<trainMeans.Size(); w++ )
         {
         trainMeans[w] = trainMeans[w] / count;
         trainSigmas[w] = trainSigmas[w] / count;
