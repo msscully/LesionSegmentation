@@ -47,6 +47,7 @@
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
 #include "flann/flann.hpp"
+#include "LesionSegmentationModel.h"
 #include "TrainModelCLP.h"
 
 /* Use an anonymous namespace to keep class types and function names
@@ -57,7 +58,6 @@
 namespace
 {
 
-const unsigned char num_features = 10;
 typedef short      PixelType;
 const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
@@ -202,16 +202,18 @@ int DoIt(int argc, char * argv [])
   MaskFilterType::Pointer refT2MaskFilter = MaskFilterType::New();
   MaskFilterType::Pointer refFLAIRMaskFilter = MaskFilterType::New();
 
-  typedef itk::Vector< float, num_features > MeasurementVectorType ;
+  LesionSegmentationModel lesionSegmentationModel = LesionSegmentationModel();
+  const unsigned char numFeatures = lesionSegmentationModel.m_NumFeatures;
+  typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
 
-  MeasurementVectorType trainMeans; trainMeans.Fill(0);
-  MeasurementVectorType trainSigmas; trainSigmas.Fill(0);
-  MeasurementVectorType trainMins; trainMins.Fill(0);
-  MeasurementVectorType trainMaxes; trainMaxes.Fill(0);
+  MeasurementArrayType trainMeans; trainMeans.Fill(0);
+  MeasurementArrayType trainSigmas; trainSigmas.Fill(0);
+  MeasurementArrayType trainMins; trainMins.Fill(0);
+  MeasurementArrayType trainMaxes; trainMaxes.Fill(0);
 
   std::vector< bool > sampleLabels;
 
-  std::vector< MeasurementVectorType > trainingSamples;
+  std::vector< MeasurementArrayType > trainingSamples;
 
   typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageRegionIteratorType; 
 
@@ -357,7 +359,7 @@ int DoIt(int argc, char * argv [])
        ** onto a listsample.
        */
 
-      /* Top num_features (10) most informative features
+      /* Top numFeatures (10) most informative features
          Dilate FLAIR radius=2
          T1w flipped difference
          Normalized Z location
@@ -457,7 +459,7 @@ int DoIt(int argc, char * argv [])
       /* First pass is to calculate the mean and standard deviation of the x, y, z
        ** voxel locations and the mean and std of the flair intensity.
        */
-      MeasurementVectorType tempSamples; tempSamples.Fill(0);
+      MeasurementArrayType tempSamples; tempSamples.Fill(0);
 
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr) 
         { 
@@ -507,7 +509,7 @@ int DoIt(int argc, char * argv [])
         {
         ImageType::IndexType idx = flairItr.GetIndex();
 
-        MeasurementVectorType tempMeasurement; tempMeasurement.Fill(0);
+        MeasurementArrayType tempMeasurement; tempMeasurement.Fill(0);
 
         tempMeasurement.SetElement( 0, (idx[0]-trainMeans[0])/trainSigmas[0] ); 
         tempMeasurement.SetElement( 1, (idx[1]-trainMeans[1])/trainSigmas[1] ); 
@@ -534,20 +536,20 @@ int DoIt(int argc, char * argv [])
         } 
       }
 
-    MeasurementVectorType signedRangeInverse; signedRangeInverse.Fill(0);
+    MeasurementArrayType signedRangeInverse; signedRangeInverse.Fill(0);
 
     for( unsigned int i = 0; i<trainMins.Size(); i++)
       {
       signedRangeInverse[i] = 2 / (trainMaxes[i]-trainMins[i]);
       }
 
-    const size_t num_samples = trainingSamples.size();
+    const size_t numSamples = trainingSamples.size();
 
     typedef flann::Matrix< float > FlannMatrixType;
-    FlannMatrixType treeDataset = FlannMatrixType(new float[num_samples*num_features], num_samples, num_features);
-    for( unsigned int i=0; i<num_samples; i++)
+    FlannMatrixType treeDataset = FlannMatrixType(new float[numSamples*numFeatures], numSamples, numFeatures);
+    for( unsigned int i=0; i<numSamples; i++)
       {
-      for( unsigned int j=0; j<num_features; j++)
+      for( unsigned int j=0; j<numFeatures; j++)
         {
         treeDataset[i][j] = signedRangeInverse[i] * (trainingSamples[i][j] - trainMins[i]) - 1;
         }
@@ -555,6 +557,12 @@ int DoIt(int argc, char * argv [])
 
     flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::AutotunedIndexParams() );
     flannIndex.buildIndex();                                                                                               
+    flannIndex.save(outputClassifierModel);
+
+    lesionSegmentationModel.SetTrainingMins(trainMins);
+    lesionSegmentationModel.SetTrainingMaxes(trainMaxes);
+    //lesionSegmentationModel.SetFLANNIndex(flannIndex);
+    lesionSegmentationModel.SaveModel(outputModel);
 
     delete[] treeDataset.ptr();
     }
@@ -578,6 +586,8 @@ int main( int argc, char * argv[] )
   if (inputMaskVolumes.size() == 0) { violated = true; std::cout << "  --inputMaskVolumes Required! "  << std::endl; }
   if (inputT1Volumes.size() == 0) { violated = true; std::cout << "  --inputT1Volumes Required! "  << std::endl; }
   if (inputT2Volumes.size() == 0) { violated = true; std::cout << "  --inputT2Volumes Required! "  << std::endl; }
+  if (outputModel.size() == 0) { violated = true; std::cout << "  --outputModel Required! "  << std::endl; }
+  if (outputClassifierModel.size() == 0) { violated = true; std::cout << "  --outputClassifierModel Required! "  << std::endl; }
   if ((inputFLAIRVolumes.size() != inputLesionVolumes.size()) && 
     (inputMaskVolumes.size() != inputFLAIRVolumes.size()) &&
     (inputT1Volumes.size() != inputFLAIRVolumes.size()) &&

@@ -41,6 +41,7 @@ set(cli_module_include_directories
   )
 
 set(cli_module_SRCS
+	LesionSegmentationModel.h
   )
 
 set(cli_module_target_libraries
