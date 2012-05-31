@@ -4,19 +4,23 @@ Lesion Segmentation Applictations for Slicer4
 Overview
 --------
 
-A collection of CLI modules for Slicer4 to enable users to train lesion segmentation models on their own data and then perform segmentation.
+A collection of CLI modules for Slicer4 to enable users to train lesion segmentation models on their own data and then perform segmentation. Currently only the model training program is available.
+
+Dependencies
+------------
+Currently [FLANN 1.7.1](http://www.cs.ubc.ca/~mariusm/index.php/FLANN/FLANN) is required.  
 
 Checkout, Configure, and Build
 ------------------------------
     $ git clone git@github.com:msscully/LesionSegmentation.git
-    $ mkdir LesionSegmentaiton-build
-    $ cd LesionSegmentaiton
-    $ cmake -DSlicer_DIR:PATH=/path/to/Slicer-Superbuild-Debug/Slicer-build ../LesionSegmentation
+    $ mkdir LesionSegmentation-build
+    $ cd LesionSegmentation
+    $ cmake -DSlicer_DIR:PATH=/path/to/Slicer-Superbuild-Debug/Slicer-build ../LesionSegmentation -DFLANN_ROOT:PATH=/path/to/flann-build
     $ make
 
 Slicer Integration
 ------------------
-Instructions coming soon...
+Once this project has been built add the build directory to Slicer4's modules directory.  This can be done by going to "View"->"Application Settings"->"Module settings" and add the path to the LesionSemenation-build directory and restart Slicer.
 
 Copyright
 --------
