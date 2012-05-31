@@ -156,7 +156,7 @@ ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::
   numOfBins = statisticsFilter->GetMaximum() - statisticsFilter->GetMinimum() + 1;
 
   histogramMatchingFilter->SetSourceImage(movingImage);
-  histogramMatchingFilter->SetSourceImage(referenceImage);
+  histogramMatchingFilter->SetReferenceImage(referenceImage);
   histogramMatchingFilter->SetNumberOfHistogramLevels(numOfBins);
   histogramMatchingFilter->SetNumberOfMatchPoints(numMatchPoints);
 
@@ -185,14 +185,6 @@ int DoIt(int argc, char * argv [])
 
   typedef itk::ImageFileReader< ImageType  >  ReaderType;
 
-  ReaderType::Pointer lesionArrayReader = ReaderType::New();
-  ReaderType::Pointer maskArrayReader = ReaderType::New();
-
-  /* TODO Need to read in the images indicated by, inputIndexOfBestImages, build a joint histogram, 
-   * then stash the histogram so it can be used to intensity standardize the images as they are loaded.
-   * When loading these images again the intensity standardization step can be skipped.
-   * */
-
   typedef itk::MaskImageFilter< ImageType, ImageType, ImageType > MaskFilterType;
   MaskFilterType::Pointer flairMaskFilter = MaskFilterType::New();
   MaskFilterType::Pointer t1MaskFilter = MaskFilterType::New();
@@ -218,11 +210,6 @@ int DoIt(int argc, char * argv [])
   typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageRegionIteratorType; 
 
   srand((unsigned)time(0)); 
-
-  if (inputPercentNonLesion == 0)
-    {
-    inputPercentNonLesion = floor(100/(inputFLAIRVolumes.size()*2));
-    }
 
   typedef itk::BinaryThresholdImageFilter<ImageType,ImageType> BinaryThresholdFilterType;
   BinaryThresholdFilterType::Pointer maskBinaryFilter = BinaryThresholdFilterType::New();
@@ -381,8 +368,8 @@ int DoIt(int argc, char * argv [])
       flipT1Filter->Modified();
       flipT1Filter->Update();
 
-      subtractFilter->SetInput(1, t1ImageHistMatched );
-      subtractFilter->SetInput(2, flipT1Filter->GetOutput() );
+      subtractFilter->SetInput1( t1ImageHistMatched );
+      subtractFilter->SetInput2( flipT1Filter->GetOutput() );
       subtractFilter->Modified();
       subtractFilter->Update();
 
@@ -465,34 +452,36 @@ int DoIt(int argc, char * argv [])
         { 
         ImageType::IndexType idx = flairItr.GetIndex();
 
-        //TODO: Push features onto a vector so all of these can be done in loops.
-        tempSamples[0] = idx[0];
-        tempSamples[1] = idx[1];
-        tempSamples[2] = idx[2];
-        tempSamples[3] = flairGrayscaleDilate2->GetOutput()->GetPixel(idx);
-        tempSamples[4] = subtractFilter->GetOutput()->GetPixel(idx);
-        tempSamples[5] = grayDistanceMapFilter->GetOutput()->GetPixel(idx);
-        tempSamples[6] = whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
-        tempSamples[7] = flairGrayscaleErode3->GetOutput()->GetPixel(idx);
-        tempSamples[8] = t2ImageHistMatched->GetPixel(idx);
-        tempSamples[9] = flairMedian3Filter->GetOutput()->GetPixel(idx);
-
-        for( unsigned int i=0; i<tempSamples.Size(); i++ )
+        if(maskImage->GetPixel(idx) != 0)
           {
-          trainMeans[i] += tempSamples[i];
-          trainSigmas[i] += tempSamples[i] * tempSamples[i];
+          tempSamples[0] = idx[0];
+          tempSamples[1] = idx[1];
+          tempSamples[2] = idx[2];
+          tempSamples[3] = flairGrayscaleDilate2->GetOutput()->GetPixel(idx);
+          tempSamples[4] = subtractFilter->GetOutput()->GetPixel(idx);
+          tempSamples[5] = grayDistanceMapFilter->GetOutput()->GetPixel(idx);
+          tempSamples[6] = whiteDistanceMapFilter->GetOutput()->GetPixel(idx);
+          tempSamples[7] = flairGrayscaleErode3->GetOutput()->GetPixel(idx);
+          tempSamples[8] = t2ImageHistMatched->GetPixel(idx);
+          tempSamples[9] = flairMedian3Filter->GetOutput()->GetPixel(idx);
 
-          if( tempSamples[i] < trainMins[i] )
+          for( unsigned int i=0; i<tempSamples.Size(); i++ )
             {
-            trainMins[i] = tempSamples[i];
+            trainMeans[i] += tempSamples[i];
+            trainSigmas[i] += tempSamples[i] * tempSamples[i];
+
+            if( tempSamples[i] < trainMins[i] )
+              {
+              trainMins[i] = tempSamples[i];
+              }
+            if(tempSamples[i] > trainMaxes[i])
+              {
+              trainMaxes[i] = tempSamples[i];
+              }
             }
-          if(tempSamples[i] > trainMaxes[i])
-            {
-            trainMaxes[i] = tempSamples[i];
-            }
+
+          ++count;
           }
-        
-        ++count;
         }
 
       for( unsigned int w=0; w<trainMeans.Size(); w++ )
@@ -507,33 +496,37 @@ int DoIt(int argc, char * argv [])
        */
       for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr)
         {
+
         ImageType::IndexType idx = flairItr.GetIndex();
-
-        MeasurementArrayType tempMeasurement; tempMeasurement.Fill(0);
-
-        tempMeasurement.SetElement( 0, (idx[0]-trainMeans[0])/trainSigmas[0] ); 
-        tempMeasurement.SetElement( 1, (idx[1]-trainMeans[1])/trainSigmas[1] ); 
-        tempMeasurement.SetElement( 2, (idx[2]-trainMeans[2])/trainSigmas[2] ); 
-        tempMeasurement.SetElement( 3, (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 4, (subtractFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 5, (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 6, (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 7, (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 8, (t2ImageHistMatched->GetPixel(idx) -trainMeans[3]-1)/trainSigmas[3] ); 
-        tempMeasurement.SetElement( 9, (flairMedian3Filter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-        
-
-        if(maskArrayReader->GetOutput()->GetPixel(idx) !=0)          
+        if(maskImage->GetPixel(idx) != 0)
           {
-          trainingSamples.push_back(tempMeasurement);
-          sampleLabels.push_back(true);
-          }
-        else if ((rand()%100+1) <= inputPercentNonLesion) /* We only want a fraction of non-lesion voxels */
-          {
-          trainingSamples.push_back(tempMeasurement);
-          sampleLabels.push_back(false);
-          }
-        } 
+
+          MeasurementArrayType tempMeasurement; tempMeasurement.Fill(0);
+
+          tempMeasurement.SetElement( 0, (idx[0]-trainMeans[0])/trainSigmas[0] ); 
+          tempMeasurement.SetElement( 1, (idx[1]-trainMeans[1])/trainSigmas[1] ); 
+          tempMeasurement.SetElement( 2, (idx[2]-trainMeans[2])/trainSigmas[2] ); 
+          tempMeasurement.SetElement( 3, (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 4, (subtractFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 5, (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 6, (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 7, (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 8, (t2ImageHistMatched->GetPixel(idx) -trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 9, (flairMedian3Filter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+
+
+          if(lesionImage->GetPixel(idx) !=0)          
+            {
+            trainingSamples.push_back(tempMeasurement);
+            sampleLabels.push_back(true);
+            }
+          else if ((rand()%100+1) <= inputPercentNonLesion) /* We only want a fraction of non-lesion voxels */
+            {
+            trainingSamples.push_back(tempMeasurement);
+            sampleLabels.push_back(false);
+            }
+          } 
+        }
       }
 
     MeasurementArrayType signedRangeInverse; signedRangeInverse.Fill(0);
@@ -545,18 +538,22 @@ int DoIt(int argc, char * argv [])
 
     const size_t numSamples = trainingSamples.size();
 
+    std::cout << "Populating FLANN matrix..." << std::endl;
     typedef flann::Matrix< float > FlannMatrixType;
     FlannMatrixType treeDataset = FlannMatrixType(new float[numSamples*numFeatures], numSamples, numFeatures);
     for( unsigned int i=0; i<numSamples; i++)
       {
       for( unsigned int j=0; j<numFeatures; j++)
         {
-        treeDataset[i][j] = signedRangeInverse[i] * (trainingSamples[i][j] - trainMins[i]) - 1;
+        treeDataset[i][j] = signedRangeInverse[j] * (trainingSamples[i][j] - trainMins[j]) - 1;
         }
       }
 
-    flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::AutotunedIndexParams() );
+    //flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::AutotunedIndexParams() );
+    flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::KDTreeIndexParams(4) );
+    std::cout << "Building FLANN index..." << std::endl;
     flannIndex.buildIndex();                                                                                               
+    std::cout << "Saving FLANN index...." << std::endl;
     flannIndex.save(outputClassifierModel);
 
     lesionSegmentationModel.SetTrainingMins(trainMins);
@@ -569,6 +566,7 @@ int DoIt(int argc, char * argv [])
   catch (itk::ExceptionObject &excep)
     {
     std::cerr << argv[0] << ": exception caught !" << std::endl;
+    std::cerr << excep << std::endl;
     return EXIT_FAILURE;
     }
 
