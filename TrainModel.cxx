@@ -257,10 +257,12 @@ int DoIt(int argc, char * argv [])
 
   typedef itk::FlipImageFilter <ImageType> FlipImageFilterType;
   FlipImageFilterType::Pointer flipT1Filter = FlipImageFilterType::New();
+  flipT1Filter->FlipAboutOriginOff();
   FlipImageFilterType::FlipAxesArrayType flipAxes;
   flipAxes[0] = true;
   flipAxes[1] = false;
   flipAxes[2] = false;
+  flipT1Filter->SetFlipAxes(flipAxes);
 
   typedef itk::SubtractImageFilter <ImageType,ImageType> SubtractFilterType;
   SubtractFilterType::Pointer subtractFilter = SubtractFilterType::New();
@@ -364,7 +366,7 @@ int DoIt(int argc, char * argv [])
       flairGrayscaleDilate2->Modified();
       flairGrayscaleDilate2->Update();
 
-      flipT1Filter->SetInput( t1Image );
+      flipT1Filter->SetInput( t1ImageHistMatched );
       flipT1Filter->Modified();
       flipT1Filter->Update();
 
