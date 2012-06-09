@@ -22,6 +22,7 @@ private:
 public:
   static const unsigned char m_NumFeatures = 10;
   typedef itk::FixedArray< float, m_NumFeatures > TrainingArrayType;
+  typedef std::vector< bool > LabelVectorType;
   //typedef flann::Index< flann::L2<float> > FLANNIndexType;
   //typedef flann::Matrix< float > FlannMatrixType;
 
@@ -55,6 +56,24 @@ public:
     m_trainingMaxes = inputTrainingMaxes;
     }
 
+  TrainingArrayType & GetTrainingSignedRangeInverse() {return m_trainingSignedRangeInverse;}
+  void SetTrainingSignedRangeInverse(TrainingArrayType &inputTrainingSignedRangeInverse)
+    {
+    m_trainingSignedRangeInverse = inputTrainingSignedRangeInverse;
+    }
+
+  LabelVectorType & GetTrainingLabels() {return m_trainingLabels;}
+  void SetTrainingLabels(LabelVectorType &inputTrainingLabels)
+    {
+    m_trainingLabels = inputTrainingLabels;
+    }
+
+  TrainingArrayType & GetLabelsSize() {return m_trainingLabelsSize;}
+  void SetLabelsSize(TrainingArrayType &inputLabelsSize)
+    {
+    m_trainingLabelsSize = inputLabelsSize;
+    }
+
   int GetNumFeatures(){return m_NumFeatures;}
 
   void SaveModel(const std::string &filename)
@@ -74,6 +93,9 @@ public:
  
       this->Write(output,this->GetTrainingMins());
       this->Write(output,this->GetTrainingMaxes());
+      this->Write(input,this->GetTrainingSignedRangeInverse());
+      this->Write(input,this->GetLabelsSize());
+      this->Write(input,this->GetTrainingLabels());
       //TODO: Write out Histograms or images for intensity standardization? 
       //this->Write(input,this->GetT1RefImage());
       //this->Write(input,this->GetT2RefImage());
@@ -114,6 +136,12 @@ public:
         }
       this->Read(input,this->GetTrainingMins());
       this->Read(input,this->GetTrainingMaxes());
+      this->Read(input,this->GetTrainingSignedRangeInverse());
+      this->Read(input,this->GetLabelsSize());
+      // This can be variable length, so we have to get the size from the 
+      // file and use it to allocate memory for the read step.
+      this->m_trainingLabels = LabelVectorType(this->GetLabelsSize());
+      this->Read(input,this->GetTrainingLabels());
       //TODO: Read Histograms or images for intensity standardization? 
       //this->Read(input,this->GetT1RefImage());
       //this->Read(input,this->GetT2RefImage());
@@ -184,6 +212,22 @@ private:
       this->Read<TrainingArrayType::ValueType>(f,vec[y]);
       }
     }
+
+  void Write(std::ofstream &f,const LabelVectorType &vec)
+    {
+    for(unsigned int y=0;y<vec.Size();y++)
+      {
+      this->Write<LabelVectorType.value_type>(f,vec[y]);
+      }
+    }
+  void Read(std::ifstream &f,LabelVectorType &vec)
+    {
+    for(unsigned int y=0;y<vec.Size();y++)
+      {
+      this->Read<LabelVectorType.value_type>(f,vec[y]);
+      }
+    }
+
   /*
   void Write(std::ofstream &f,const FLANNIndexType &flannIndex)
     {
@@ -205,6 +249,9 @@ private:
 
   TrainingArrayType m_trainingMins;
   TrainingArrayType m_trainingMaxes;
+  TrainingArrayType m_trainingSignedRangeInverse;
+  LabelVectorType  m_trainingLabels;
+  unsigned long m_trainingLabelsSize;
   //FLANNIndexType m_flannIndex;
   //FLANNDatasetType m_flannDataset
 };

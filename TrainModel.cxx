@@ -165,6 +165,18 @@ ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::
   return castFilter->GetOutput();
 }
 
+MeasurementArrayType CalculateSignedRangeInverse(MeasurementArrayType& mins, MeasurementArrayType& maxes)
+{
+  MeasurementArrayType signedRangeInverse; signedRangeInverse.Fill(0);
+
+  for( unsigned int i = 0; i<mins.Size(); i++)
+    {
+    signedRangeInverse[i] = 2 / (maxes[i]-mins[i]);
+    }
+
+  return signedRangeInverse;
+}
+
 int DoIt(int argc, char * argv [])
 {
   PARSE_ARGS;
@@ -203,6 +215,8 @@ int DoIt(int argc, char * argv [])
   MeasurementArrayType trainMins; trainMins.Fill(0);
   MeasurementArrayType trainMaxes; trainMaxes.Fill(0);
 
+  //TODO: reserve an estimated size based on number of input images,
+  // the resolution of those images, and the %nonlesion samples.
   std::vector< bool > sampleLabels;
 
   std::vector< MeasurementArrayType > trainingSamples;
@@ -531,12 +545,7 @@ int DoIt(int argc, char * argv [])
         }
       }
 
-    MeasurementArrayType signedRangeInverse; signedRangeInverse.Fill(0);
-
-    for( unsigned int i = 0; i<trainMins.Size(); i++)
-      {
-      signedRangeInverse[i] = 2 / (trainMaxes[i]-trainMins[i]);
-      }
+    MeasurementArrayType signedRangeInverse = CalculateSignedRangeInverse(trainMins,trainMaxes);
 
     const size_t numSamples = trainingSamples.size();
 
@@ -556,10 +565,14 @@ int DoIt(int argc, char * argv [])
     std::cout << "Building FLANN index..." << std::endl;
     flannIndex.buildIndex();                                                                                               
     std::cout << "Saving FLANN index...." << std::endl;
-    flannIndex.save(outputClassifierModel);
+    //flannIndex.save(outputClassifierModel);
+    flann::save_to_file(treeDataset,outputClassifierModel,"trainingDataset");
 
     lesionSegmentationModel.SetTrainingMins(trainMins);
     lesionSegmentationModel.SetTrainingMaxes(trainMaxes);
+    lesionSegmentationModel.SetTrainingMaxes(signedRangeInverse);
+    lesionSegmentationModel.SetLabelsSize(sampleLabels.size());
+    lesionSegmentationModel.SetTrainingLabels(sampleLabels);
     //lesionSegmentationModel.SetFLANNIndex(flannIndex);
     lesionSegmentationModel.SaveModel(outputModel);
 
