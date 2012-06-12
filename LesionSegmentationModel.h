@@ -22,7 +22,7 @@ private:
 public:
   static const unsigned char m_NumFeatures = 10;
   typedef itk::FixedArray< float, m_NumFeatures > TrainingArrayType;
-  typedef std::vector< bool > LabelVectorType;
+  typedef std::vector< char > LabelVectorType;
   //typedef flann::Index< flann::L2<float> > FLANNIndexType;
   //typedef flann::Matrix< float > FlannMatrixType;
 
@@ -68,8 +68,8 @@ public:
     m_trainingLabels = inputTrainingLabels;
     }
 
-  TrainingArrayType & GetLabelsSize() {return m_trainingLabelsSize;}
-  void SetLabelsSize(TrainingArrayType &inputLabelsSize)
+  long unsigned int & GetLabelsSize() {return m_trainingLabelsSize;}
+  void SetLabelsSize(long unsigned int &inputLabelsSize)
     {
     m_trainingLabelsSize = inputLabelsSize;
     }
@@ -93,9 +93,9 @@ public:
  
       this->Write(output,this->GetTrainingMins());
       this->Write(output,this->GetTrainingMaxes());
-      this->Write(input,this->GetTrainingSignedRangeInverse());
-      this->Write(input,this->GetLabelsSize());
-      this->Write(input,this->GetTrainingLabels());
+      this->Write(output,this->GetTrainingSignedRangeInverse());
+      this->Write(output,this->GetLabelsSize());
+      this->Write(output,this->GetTrainingLabels());
       //TODO: Write out Histograms or images for intensity standardization? 
       //this->Write(input,this->GetT1RefImage());
       //this->Write(input,this->GetT2RefImage());
@@ -215,16 +215,16 @@ private:
 
   void Write(std::ofstream &f,const LabelVectorType &vec)
     {
-    for(unsigned int y=0;y<vec.Size();y++)
+    for(unsigned int y=0;y<vec.size();y++)
       {
-      this->Write<LabelVectorType.value_type>(f,vec[y]);
+      this->Write<LabelVectorType::value_type>(f,vec[y]);
       }
     }
   void Read(std::ifstream &f,LabelVectorType &vec)
     {
-    for(unsigned int y=0;y<vec.Size();y++)
+    for(unsigned int y=0;y<vec.size();y++)
       {
-      this->Read<LabelVectorType.value_type>(f,vec[y]);
+      this->Read<LabelVectorType::value_type>(f,vec[y]);
       }
     }
 

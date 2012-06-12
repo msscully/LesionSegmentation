@@ -47,6 +47,7 @@
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
 #include "flann/flann.hpp"
+#include "flann/io/hdf5.h"
 #include "LesionSegmentationModel.h"
 #include "PredictLesionsCLP.h"
 
@@ -204,7 +205,7 @@ int DoIt(int argc, char * argv [])
   MeasurementArrayType testSigmas; testSigmas.Fill(0);  
   MeasurementArrayType trainMins = lesionSegmentationModel.GetTrainingMins();
   MeasurementArrayType trainMaxes = lesionSegmentationModel.GetTrainingMaxes();
-  MeasurementArrayType trainSignedRangeInverse = lesionSegmentationModel.GetTrainingsignedRangeInverse();
+  MeasurementArrayType trainSignedRangeInverse = lesionSegmentationModel.GetTrainingSignedRangeInverse();
   LabelVectorType trainLabels = lesionSegmentationModel.GetTrainingLabels();
 
   typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageRegionIteratorType; 
@@ -470,19 +471,19 @@ int DoIt(int argc, char * argv [])
       testSigmas[w] = sqrt(testSigmas[w] - (testMeans[w]*testMeans[w]));
       }
 
-    ImageType lesionMask = ImageType::New();
+    ImageType::Pointer lesionMask = ImageType::New();
     ImageType::RegionType region;
-    region.SetSize(t1Image->GetLargestPossibleRegion()->GetSize());
-    region.SetIndex(t1Image->GetLargestPossibleRegion()->GetIndex());
+    region.SetSize(t1Image->GetLargestPossibleRegion().GetSize());
+    region.SetIndex(t1Image->GetLargestPossibleRegion().GetIndex());
     lesionMask->SetRegions(region);
     lesionMask->Allocate();
     lesionMask->SetSpacing(t1Image->GetSpacing());
     lesionMask->SetOrigin(t1Image->GetOrigin());
 
-    FloatImageType percentLesionImage = FloatImageType::New();
+    FloatImageType::Pointer percentLesionImage = FloatImageType::New();
     FloatImageType::RegionType floatRegion;
-    floatRegion.SetSize(t1Image->GetLargestPossibleRegion()->GetSize());
-    floatRegion.SetIndex(t1Image->GetLargestPossibleRegion()->GetIndex());
+    floatRegion.SetSize(t1Image->GetLargestPossibleRegion().GetSize());
+    floatRegion.SetIndex(t1Image->GetLargestPossibleRegion().GetIndex());
     percentLesionImage->SetRegions(floatRegion);
     percentLesionImage->Allocate();
     percentLesionImage->SetSpacing(t1Image->GetSpacing());
@@ -517,7 +518,7 @@ int DoIt(int argc, char * argv [])
           query[0][0] = trainSignedRangeInverse[0] * (query[0][0] - trainMins[0]) - 1;
           }
 
-        index.knnSearch(query, indices, dists, numNeighbors, flann::SearchParams(128));
+        flannIndex.knnSearch(query, indices, dists, numNeighbors, flann::SearchParams(128));
 
         unsigned int numLesion = 0;
         for(unsigned int j=0;j<numNeighbors;j++)
@@ -543,7 +544,6 @@ int DoIt(int argc, char * argv [])
       }
 
     delete[] trainingDataset.ptr();
-    delete[] testDataset.ptr();
     delete[] query.ptr();
     delete[] indices.ptr();
     delete[] dists.ptr();
@@ -556,7 +556,7 @@ int DoIt(int argc, char * argv [])
 
     typedef itk::ImageFileWriter<FloatImageType> FloatWriterType;
     FloatWriterType::Pointer lesionPercentWriter = FloatWriterType::New();
-    lesionPercentWriter->SetInput(lesionPercentImage);
+    lesionPercentWriter->SetInput(percentLesionImage);
     lesionPercentWriter->SetFileName(outputLesionProbVolume);
     lesionPercentWriter->Update();
 
