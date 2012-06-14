@@ -1,0 +1,75 @@
+set(proj ITKv4)
+
+# Set CMake OSX variable to pass down the external project
+set(CMAKE_OSX_EXTERNAL_PROJECT_ARGS)
+if(APPLE)
+  list(APPEND CMAKE_OSX_EXTERNAL_PROJECT_ARGS
+    -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+    -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET})
+endif()
+
+### --- Project specific additions here
+set(ITKv4_WRAP_ARGS)
+string(REPLACE "-fopenmp" "" ITK_CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+string(REPLACE "-fopenmp" "" ITK_CMAKE_CXX_FLAGS "${CMAKE_CX_FLAGS}")
+
+set(${proj}_CMAKE_OPTIONS
+  -DITK_LEGACY_REMOVE:BOOL=ON
+  -DITK_BUILD_ALL_MODULES:BOOL=ON
+  -DITK_USE_REVIEW:BOOL=ON
+  -DITKV3_COMPATIBILITY:BOOL=ON
+  -DKWSYS_USE_MD5:BOOL=ON # Required by SlicerExecutionModel
+  -DUSE_WRAP_ITK:BOOL=OFF ## HACK:  QUICK CHANGE
+  )
+### --- End Project specific additions
+get_filename_component(ITK_INSTALL_PREFIX ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+  PATH)
+
+ExternalProject_Add(${proj}
+  GIT_REPOSITORY git://itk.org/ITK.git
+  GIT_TAG 636ab875441b97e19d25c7022454297b5a04ade9
+  SOURCE_DIR ${proj}
+  BINARY_DIR ${proj}-build
+  UPDATE_COMMAND ""
+  CMAKE_GENERATOR ${gen}
+  CMAKE_ARGS
+  ${CMAKE_OSX_EXTERNAL_PROJECT_ARGS}
+  ${CMAKE_COMMON_ARGS}
+  -DBUILD_EXAMPLES:BOOL=OFF
+  -DBUILD_TESTING:BOOL=OFF
+  ${${proj}_CMAKE_OPTIONS}
+  -DCMAKE_INSTALL_PREFIX=${ITK_INSTALL_PREFIX}
+  DEPENDS
+  ${${proj}_DEPENDENCIES}
+  )
+
+set(ITK_LibNames ITKBiasCorrection-4.2 ITKBioCell-4.2
+  ITKCommon-4.2 ITKDeprecated-4.2 ITKDICOMParser-4.2
+  ITKEXPAT-4.2 ITKFEM-4.2 ITKgiftiio-4.2 ITKIOBioRad-4.2
+  ITKIOBMP-4.2 ITKIOCSV-4.2 ITKIOGDCM-4.2 ITKIOGE-4.2
+  ITKIOGIPL-4.2 ITKIOHDF5-4.2 ITKIOImageBase-4.2
+  ITKIOIPL-4.2 ITKIOJPEG-4.2 ITKIOLSM-4.2
+  ITKIOMesh-4.2 ITKIOMeta-4.2 ITKIONIFTI-4.2
+  ITKIONRRD-4.2 ITKIOPNG-4.2 ITKIOSiemens-4.2
+  ITKIOSpatialObjects-4.2 ITKIOStimulate-4.2 ITKIOTIFF-4.2
+  ITKIOTransformBase-4.2 ITKIOTransformHDF5-4.2
+  ITKIOTransformInsightLegacy-4.2 ITKIOTransformMatlab-4.2
+  ITKIOVTK-4.2 ITKIOXML-4.2 ITKKLMRegionGrowing-4.2
+  ITKLabelMap-4.2 ITKMesh-4.2 ITKMetaIO-4.2
+  ITKniftiio-4.2 ITKNrrdIO-4.2 ITKOptimizers-4.2
+  ITKOptimizersv4-4.2 ITKPath-4.2 ITKPolynomials-4.2
+  ITKQuadEdgeMesh-4.2 ITKReview-4.2 ITKSpatialObjects-4.2
+  ITKStatistics-4.2 ITKVideoCore-4.2 ITKVideoIO-4.2
+  ITKVNLInstantiation-4.2 ITKVTK-4.2 ITKWatersheds-4.2
+  ITKznz-4.2)
+
+set(ITK_LibDir ${CMAKE_CURRENT_BINARY_DIR}/lib)
+
+import_libraries(EXTPROJECT ${proj}
+  LIBNAMES ${ITK_LibNames}
+  LIBDIR ${ITK_LibDir}
+  LIBVARNAME ITK_LIBRARIES)
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/ITK-4.2)
+set(ITK_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/ITK-4.2)

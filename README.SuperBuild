@@ -1,0 +1,26 @@
+I'm hoping that this is documented in-line to your satisfaction.
+
+This could have been a straight-ahead one-level build, except for the
+Slicer Execution Model command line stuff.  The problem is that you
+need GenerateCLP at configuration time. And SEM needs ITK.
+
+
+But at the same time, the business of creating 'in line'
+ExternalProjects' has some advantages, so I used that for HDF5 and
+FLANN.
+
+The install in the CMake build system for FLANN & HDF5 is broken, so I
+sidestep that by A) telling them to store their libraries at
+<top-level-build>/lib, and B) add a CMake script that copies their
+include files to <top-level-build>/include.  Any executables they happen
+to build end up in <top-level-build>/bin.
+
+This all works, up to a point. There's a CMake if/else -- grep for
+if(SIMPLIFIED) -- which avoids using all the slicer crap, just to try
+and test things out.  I copied a couple of files from the Slicer
+distro into the local source that weren't being found.
+
+At this point everything seems to be working up to the point where
+TrainModel.cxx and PredictLesions.cxx -- it errors out, because there
+are is a typedef used before it's defined. I'll leave that as an
+exercise to the reader.
