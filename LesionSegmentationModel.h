@@ -68,8 +68,8 @@ public:
     m_trainingLabels = inputTrainingLabels;
     }
 
-  long unsigned int & GetLabelsSize() {return m_trainingLabelsSize;}
-  void SetLabelsSize(long unsigned int &inputLabelsSize)
+  size_t & GetLabelsSize() {return m_trainingLabelsSize;}
+  void SetLabelsSize(size_t inputLabelsSize)
     {
     m_trainingLabelsSize = inputLabelsSize;
     }

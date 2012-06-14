@@ -47,6 +47,7 @@
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
 #include "flann/flann.hpp"
+#include "flann/io/hdf5.h"
 #include "LesionSegmentationModel.h"
 #include "TrainModelCLP.h"
 
@@ -63,6 +64,7 @@ const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
 
 const PixelType imageExclusion = itk::NumericTraits<PixelType>::min( PixelType() );
+typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
 
 template<class DetectedPixelType> ImageType::Pointer castImage(std::string& imageFileName,DetectedPixelType)
 {
@@ -177,23 +179,8 @@ MeasurementArrayType CalculateSignedRangeInverse(MeasurementArrayType& mins, Mea
   return signedRangeInverse;
 }
 
-int DoIt(int argc, char * argv [])
+int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> inputT2Volumes, std::vector<std::string> inputFLAIRVolumes, std::vector<std::string> inputMaskVolumes, std::vector<std::string> inputLesionVolumes, std::string outputModel, std::string outputClassifierModel, unsigned int inputIndexOfBestImages, unsigned int inputPercentNonLesion)
 {
-  PARSE_ARGS;
-
-  bool violated=false;
-  if (inputFLAIRVolumes.size() == 0) { violated = true; std::cout << "  --inputFLAIRVolumes Required! "  << std::endl; }
-  if (inputLesionVolumes.size() == 0) { violated = true; std::cout << "  --inputLesionVolumes Required! "  << std::endl; }
-  if (inputMaskVolumes.size() == 0) { violated = true; std::cout << "  --inputMaskVolumes Required! "  << std::endl; }
-  if (inputT1Volumes.size() == 0) { violated = true; std::cout << "  --inputT1Volumes Required! "  << std::endl; }
-  if (inputT2Volumes.size() == 0) { violated = true; std::cout << "  --inputT2Volumes Required! "  << std::endl; }
-  if ((inputFLAIRVolumes.size() != inputLesionVolumes.size()) && 
-    (inputMaskVolumes.size() != inputFLAIRVolumes.size()) &&
-    (inputT1Volumes.size() != inputFLAIRVolumes.size()) &&
-    (inputT2Volumes.size() != inputFLAIRVolumes.size())) 
-    { violated = true; std::cout << "  the number of files after --inputT1Volumes, --inputT2Volumes, --inputFLAIRVolumes, --inputLesionVolumes, and --inputMaskVolumes must all be equal! "  << std::endl;
-    }
-  if (violated) exit(EXIT_FAILURE);
 
   typedef itk::ImageFileReader< ImageType  >  ReaderType;
 
@@ -208,7 +195,6 @@ int DoIt(int argc, char * argv [])
 
   LesionSegmentationModel lesionSegmentationModel = LesionSegmentationModel();
   const unsigned char numFeatures = lesionSegmentationModel.m_NumFeatures;
-  typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
 
   MeasurementArrayType trainMeans; trainMeans.Fill(0);
   MeasurementArrayType trainSigmas; trainSigmas.Fill(0);
@@ -217,7 +203,7 @@ int DoIt(int argc, char * argv [])
 
   //TODO: reserve an estimated size based on number of input images,
   // the resolution of those images, and the %nonlesion samples.
-  std::vector< bool > sampleLabels;
+  std::vector< char > sampleLabels;
 
   std::vector< MeasurementArrayType > trainingSamples;
 
@@ -536,7 +522,7 @@ int DoIt(int argc, char * argv [])
             trainingSamples.push_back(tempMeasurement);
             sampleLabels.push_back(true);
             }
-          else if ((rand()%100+1) <= inputPercentNonLesion) /* We only want a fraction of non-lesion voxels */
+          else if ((unsigned int)(rand()%100+1) <= inputPercentNonLesion) /* We only want a fraction of non-lesion voxels */
             {
             trainingSamples.push_back(tempMeasurement);
             sampleLabels.push_back(false);
@@ -580,7 +566,7 @@ int DoIt(int argc, char * argv [])
     }
   catch (itk::ExceptionObject &excep)
     {
-    std::cerr << argv[0] << ": exception caught !" << std::endl;
+    std::cerr << "Exception caught !" << std::endl;
     std::cerr << excep << std::endl;
     return EXIT_FAILURE;
     }
@@ -611,7 +597,7 @@ int main( int argc, char * argv[] )
 
   try
     {
-    return DoIt( argc, argv );
+    return DoIt(inputT1Volumes,inputT2Volumes,inputFLAIRVolumes,inputMaskVolumes,inputLesionVolumes,outputModel,outputClassifierModel,inputIndexOfBestImages,inputPercentNonLesion);
     }
   catch( itk::ExceptionObject & excep )
     {
