@@ -13,7 +13,8 @@ ExternalProject_Add(FLANN
   DEPENDS HDF5
   )
 
-set(INCLUDE_TARGET ${CMAKE_CURRENT_BINARY_DIR}/include)
+set(INCLUDE_TARGET ${CMAKE_INCLUDE_OUTPUT_DIRECTORY})
+
 #
 # run script to copy the include files
 ExternalProject_Add_Step(FLANN CopyHeaders
@@ -29,7 +30,8 @@ ExternalProject_Add_Step(FLANN CopyHeaders
 # use import_libraries (in ExtProjectSetup.cmake)
 # to import the libraries and creat the library var
 set(FLANN_LibNames flann_cpp_s flan_cpp_s-gd flann_s)
-set(FLANN_LibDir ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(FLANN_LibDir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+
 import_libraries(EXTPROJECT FLANN LIBNAMES ${FLANN_LibNames}
   LIBDIR ${FLANN_LibDir} LIBVARNAME FLANN_LIBRARIES)
 
@@ -39,7 +41,7 @@ import_libraries(EXTPROJECT FLANN LIBNAMES ${FLANN_LibNames}
 set(FLANN_IncludeDirs
   flann/algorithms flann/io  flan/mpi flann/nn  flan/tbb  flan/util
   flann/util/cuda flan)
-
+include_directories(${INCLUDE_TARGET})
 foreach(incdir ${FLANN_IncludeDirs})
   include_directories(${INCLUDE_TARGET}/${incdir})
 endforeach()

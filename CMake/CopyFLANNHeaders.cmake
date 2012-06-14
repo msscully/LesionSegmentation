@@ -1,5 +1,6 @@
 
 foreach(dir flann
+    flan/tbb
     flann/algorithms
     flann/io
     flann/mpi
@@ -9,11 +10,13 @@ foreach(dir flann
     )
   message("dir = ${dir}")
   file(GLOB include_files ${FLANN_SOURCE}/src/cpp/${dir}/*.h
-    ${FLANN_SOURCE}/cpp/*.hpp)
+                          ${FLANN_SOURCE}/src/cpp/${dir}/*.hpp)
   foreach(include_file ${include_files})
     get_filename_component(include_filename ${include_file} NAME)
-    configure_file(${include_file}
-      ${INCLUDE_TARGET}/${dir}/${include_filename} COPY_ONLY)
+    set(destination ${INCLUDE_TARGET}/${dir}/${include_filename})
+
+    message("copying ${include_file} to ${destination}")
+    configure_file(${include_file} ${destination} COPY_ONLY)
   endforeach()
 endforeach()
 

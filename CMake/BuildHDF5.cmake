@@ -13,12 +13,13 @@ ExternalProject_Add(HDF5
   )
 
 # after the build, copy the files to CMAKE_CURRENT_BINARY_DIR/include
-set(INCLUDE_TARGET ${CMAKE_CURRENT_BINARY_DIR}/include)
+set(INCLUDE_TARGET ${CMAKE_INCLUDE_OUTPUT_DIRECTORY})
+
 ExternalProject_Add_Step(HDF5 CopyHeaders
   COMMENT "Copying HDF5 Headers"
   DEPENDEES build
   COMMAND ${CMAKE_COMMAND}
-  -DINCLUDE_TARGET=${CMAKE_CURRENT_BINARY_DIR}/include
+  -DINCLUDE_TARGET=${INCLUDE_TARGET}
   -DHDF5_BUILD=<BINARY_DIR>
   -DHDF5_SOURCE=<SOURCE_DIR>
   -P ${CMAKE_CURRENT_LIST_DIR}/CopyHDF5Headers.cmake)
@@ -28,7 +29,7 @@ ExternalProject_Add_Step(HDF5 CopyHeaders
 # use import_libraries (in ExtProjectSetup.cmake)
 # to import the libraries and creat the library var
 set(HDF5_LibNames hdf5 hdf5_cpp)
-set(HDF5_LibDir ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(HDF5_LibDir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
 import_libraries(EXTPROJECT HDF5 LIBNAMES ${HDF5_LibNames}
   LIBDIR ${HDF5_LibDir} LIBVARNAME HDF5_LIBRARIES)

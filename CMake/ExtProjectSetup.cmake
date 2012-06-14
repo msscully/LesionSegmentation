@@ -1,16 +1,21 @@
 # used below in macro...
 include(CMakeParseArguments)
 
+macro(setifempty)
+  if("${${ARGV0}}" STREQUAL "")
+    set(${ARGV})
+  endif()
+endmacro(setifempty)
 #-----------------------------------------------------------------------------
 # the idea is to as much as possible to avoid
 # installing projects to get them in the right place.
 # setting this variables steers the ext projects to
 # dump their libs and executables at the top level bin and lib
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(CMAKE_BUNDLE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
-
+setifempty(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+setifempty(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
+setifempty(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+setifempty(CMAKE_BUNDLE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
+setifempty(CMAKE_INCLUDE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
 # If you build pretty much anything on Linux without -fPIC, you lose
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(CMAKE_C_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
@@ -43,6 +48,7 @@ set(CMAKE_COMMON_ARGS_LIST
   CMAKE_ARCHIVE_OUTPUT_DIRECTORY:PATH
   CMAKE_RUNTIME_OUTPUT_DIRECTORY:PATH
   CMAKE_BUNDLE_OUTPUT_DIRECTORY:PATH
+  CMAKE_INCLUDE_OUTPUT_DIRECTORY:PATH
   CTEST_NEW_FORMAT:BOOL
   MEMORYCHECK_COMMAND_OPTIONS:STRING
   MEMORYCHECK_COMMAND:PATH

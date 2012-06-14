@@ -23,6 +23,8 @@ set(${proj}_CMAKE_OPTIONS
   -DUSE_WRAP_ITK:BOOL=OFF ## HACK:  QUICK CHANGE
   )
 ### --- End Project specific additions
+get_filename_component(ITK_INSTALL_PREFIX ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+  PATH)
 
 ExternalProject_Add(${proj}
   GIT_REPOSITORY git://itk.org/ITK.git
@@ -37,7 +39,7 @@ ExternalProject_Add(${proj}
   -DBUILD_EXAMPLES:BOOL=OFF
   -DBUILD_TESTING:BOOL=OFF
   ${${proj}_CMAKE_OPTIONS}
-  -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}
+  -DCMAKE_INSTALL_PREFIX=${ITK_INSTALL_PREFIX}
   DEPENDS
   ${${proj}_DEPENDENCIES}
   )
