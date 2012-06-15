@@ -76,7 +76,7 @@ endforeach()
 # whether it's debug or release.
 if(NOT WIN32 OR MINGW)
   set(lib_prefix lib)
-  if(BUILD_SHARED_LIBS)
+  if(NOT BUILD_SHARED_LIBS)
     set(lib_suffix .a)
   else()
     if(APPLE)
