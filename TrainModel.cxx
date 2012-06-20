@@ -46,6 +46,7 @@
 #include "itkMedianImageFilter.h"
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
+#include "itkChangeInformationImageFilter.h"
 #include "flann/flann.hpp"
 #include "flann/io/hdf5.h"
 #include "LesionSegmentationModel.h"
@@ -139,7 +140,7 @@ ImageType::Pointer ReadAndConvertImage(std::string& imageFileName)
 
 ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::Pointer movingImage)
 {
-  unsigned long numMatchPoints = 1000;
+  size_t numMatchPoints = 1000;
 
   typedef itk::HistogramMatchingImageFilter< ImageType, ImageType> HistogramMatchingFilterType;
   HistogramMatchingFilterType::Pointer histogramMatchingFilter = HistogramMatchingFilterType::New();
@@ -151,9 +152,9 @@ ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::
   typedef itk::CastImageFilter< HistMatchType,ImageType > CastFilterType;
   CastFilterType::Pointer castFilter = CastFilterType::New();
 
-  unsigned long numOfBins = 0;
+  size_t numOfBins = 0;
 
-  statisticsFilter->SetInput(movingImage);
+  statisticsFilter->SetInput(referenceImage);
   statisticsFilter->Update();
   numOfBins = statisticsFilter->GetMaximum() - statisticsFilter->GetMinimum() + 1;
 
@@ -267,6 +268,9 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
   typedef itk::SubtractImageFilter <ImageType,ImageType> SubtractFilterType;
   SubtractFilterType::Pointer subtractFilter = SubtractFilterType::New();
 
+  typedef itk::ChangeInformationImageFilter < ImageType > ChangeImageFilterType;
+  ChangeImageFilterType::Pointer changeImageFilter = ChangeImageFilterType::New();
+
   typedef itk::LabelStatisticsImageFilter< ImageType, ImageType > LabelStatisticsFilterType;
   typedef LabelStatisticsFilterType::RealType StatisticRealType;
   LabelStatisticsFilterType::Pointer statisticsFilter = LabelStatisticsFilterType::New();
@@ -370,8 +374,16 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
       flipT1Filter->Modified();
       flipT1Filter->Update();
 
+      changeImageFilter->SetInput( flipT1Filter->GetOutput());
+      changeImageFilter->SetOutputOrigin( t1ImageHistMatched->GetOrigin() );
+      changeImageFilter->SetOutputDirection( t1ImageHistMatched->GetDirection() );
+      changeImageFilter->SetChangeOrigin( true );
+      changeImageFilter->SetChangeDirection( true );
+      changeImageFilter->Modified();
+      changeImageFilter->Update();
+
       subtractFilter->SetInput1( t1ImageHistMatched );
-      subtractFilter->SetInput2( flipT1Filter->GetOutput() );
+      subtractFilter->SetInput2( changeImageFilter->GetOutput() );
       subtractFilter->Modified();
       subtractFilter->Update();
 
@@ -443,7 +455,7 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
       /* Iterator over the lesion masked, brain masked, flair */
       ImageRegionIteratorType flairItr( flairImageHistMatched,flairImageHistMatched->GetRequestedRegion() ); 
 
-      unsigned int count = 0;
+      size_t count = 0;
 
       /* First pass is to calculate the mean and standard deviation of the x, y, z
        ** voxel locations and the mean and std of the flair intensity.
@@ -509,12 +521,12 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
           tempMeasurement.SetElement( 1, (idx[1]-trainMeans[1])/trainSigmas[1] ); 
           tempMeasurement.SetElement( 2, (idx[2]-trainMeans[2])/trainSigmas[2] ); 
           tempMeasurement.SetElement( 3, (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-          tempMeasurement.SetElement( 4, (subtractFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-          tempMeasurement.SetElement( 5, (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-          tempMeasurement.SetElement( 6, (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-          tempMeasurement.SetElement( 7, (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
-          tempMeasurement.SetElement( 8, (t2ImageHistMatched->GetPixel(idx) -trainMeans[3]-1)/trainSigmas[3] ); 
-          tempMeasurement.SetElement( 9, (flairMedian3Filter->GetOutput()->GetPixel(idx)-trainMeans[3]-1)/trainSigmas[3] ); 
+          tempMeasurement.SetElement( 4, (subtractFilter->GetOutput()->GetPixel(idx)-trainMeans[4]-1)/trainSigmas[4] ); 
+          tempMeasurement.SetElement( 5, (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[5]-1)/trainSigmas[5] ); 
+          tempMeasurement.SetElement( 6, (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-trainMeans[6]-1)/trainSigmas[6] ); 
+          tempMeasurement.SetElement( 7, (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-trainMeans[7]-1)/trainSigmas[7] ); 
+          tempMeasurement.SetElement( 8, (t2ImageHistMatched->GetPixel(idx) -trainMeans[8]-1)/trainSigmas[8] ); 
+          tempMeasurement.SetElement( 9, (flairMedian3Filter->GetOutput()->GetPixel(idx)-trainMeans[9]-1)/trainSigmas[9] ); 
 
 
           if(lesionImage->GetPixel(idx) !=0)          
@@ -537,6 +549,9 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
 
     std::cout << "Populating FLANN matrix..." << std::endl;
     typedef flann::Matrix< float > FlannMatrixType;
+    
+    std::cout <<"numSamples: " << numSamples << std::endl;
+
     FlannMatrixType treeDataset = FlannMatrixType(new float[numSamples*numFeatures], numSamples, numFeatures);
     for( unsigned int i=0; i<numSamples; i++)
       {
@@ -550,8 +565,10 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
     flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::KDTreeIndexParams(4) );
     std::cout << "Building FLANN index..." << std::endl;
     flannIndex.buildIndex();                                                                                               
+    // FLANN has issues if this already exists.
+    remove(outputClassifierModel.c_str());
+
     std::cout << "Saving FLANN index...." << std::endl;
-    //flannIndex.save(outputClassifierModel);
     flann::save_to_file(treeDataset,outputClassifierModel,"trainingDataset");
 
     lesionSegmentationModel.SetTrainingMins(trainMins);
@@ -561,6 +578,8 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
     lesionSegmentationModel.SetTrainingLabels(sampleLabels);
     //lesionSegmentationModel.SetFLANNIndex(flannIndex);
     lesionSegmentationModel.SaveModel(outputModel);
+
+    std::cout << "Models saved." << std::endl;
 
     delete[] treeDataset.ptr();
     }

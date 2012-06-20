@@ -46,6 +46,7 @@
 #include "itkMedianImageFilter.h"
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
+#include "itkChangeInformationImageFilter.h"
 #include "flann/flann.hpp"
 #include "flann/io/hdf5.h"
 #include "LesionSegmentationModel.h"
@@ -138,7 +139,7 @@ ImageType::Pointer ReadAndConvertImage(std::string& imageFileName)
 
 ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::Pointer movingImage)
 {
-  unsigned long numMatchPoints = 1000;
+  size_t numMatchPoints = 1000;
 
   typedef itk::HistogramMatchingImageFilter< ImageType, ImageType> HistogramMatchingFilterType;
   HistogramMatchingFilterType::Pointer histogramMatchingFilter = HistogramMatchingFilterType::New();
@@ -150,9 +151,9 @@ ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::
   typedef itk::CastImageFilter< HistMatchType,ImageType > CastFilterType;
   CastFilterType::Pointer castFilter = CastFilterType::New();
 
-  unsigned long numOfBins = 0;
+  size_t numOfBins = 0;
 
-  statisticsFilter->SetInput(movingImage);
+  statisticsFilter->SetInput(referenceImage);
   statisticsFilter->Update();
   numOfBins = statisticsFilter->GetMaximum() - statisticsFilter->GetMinimum() + 1;
 
@@ -261,6 +262,9 @@ int DoIt(int argc, char * argv [])
   typedef itk::SubtractImageFilter <ImageType,ImageType> SubtractFilterType;
   SubtractFilterType::Pointer subtractFilter = SubtractFilterType::New();
 
+  typedef itk::ChangeInformationImageFilter < ImageType > ChangeImageFilterType;
+  ChangeImageFilterType::Pointer changeImageFilter = ChangeImageFilterType::New();
+
   typedef itk::LabelStatisticsImageFilter< ImageType, ImageType > LabelStatisticsFilterType;
   typedef LabelStatisticsFilterType::RealType StatisticRealType;
   LabelStatisticsFilterType::Pointer statisticsFilter = LabelStatisticsFilterType::New();
@@ -297,17 +301,6 @@ int DoIt(int argc, char * argv [])
 
   try
     {
-
-    const unsigned int numNeighbors = 30;
-    typedef flann::Matrix< float > FlannMatrixType;
-    FlannMatrixType trainingDataset;
-    flann::load_from_file(trainingDataset,inputClassifierModel,"traininDataset");
-    flann::Index< flann::L2<float> > flannIndex(trainingDataset, flann::KDTreeIndexParams(4) );
-    flannIndex.buildIndex();                                                                                               
-
-    FlannMatrixType query(new float[numFeatures], 1, numFeatures);
-    flann::Matrix<int> indices(new int[query.rows*numNeighbors], query.rows, numNeighbors);
-    FlannMatrixType dists(new float[query.rows*numNeighbors], query.rows, numNeighbors);
 
     ImageType::Pointer t1Image = ReadAndConvertImage(inputT1Volume);
     ImageType::Pointer t2Image = ReadAndConvertImage(inputT2Volume);
@@ -357,8 +350,16 @@ int DoIt(int argc, char * argv [])
     flipT1Filter->Modified();
     flipT1Filter->Update();
 
+    changeImageFilter->SetInput( flipT1Filter->GetOutput());
+    changeImageFilter->SetOutputOrigin( t1ImageHistMatched->GetOrigin() );
+    changeImageFilter->SetOutputDirection( t1ImageHistMatched->GetDirection() );
+    changeImageFilter->SetChangeOrigin( true );
+    changeImageFilter->SetChangeDirection( true );
+    changeImageFilter->Modified();
+    changeImageFilter->Update();
+
     subtractFilter->SetInput1( t1ImageHistMatched );
-    subtractFilter->SetInput2( flipT1Filter->GetOutput() );
+    subtractFilter->SetInput2( changeImageFilter->GetOutput() );
     subtractFilter->Modified();
     subtractFilter->Update();
 
@@ -430,7 +431,7 @@ int DoIt(int argc, char * argv [])
     /* Iterator over the lesion masked, brain masked, flair */
     ImageRegionIteratorType flairItr( flairImageHistMatched,flairImageHistMatched->GetRequestedRegion() ); 
 
-    unsigned int count = 0;
+    size_t count = 0;
 
     /* First pass is to calculate the mean and standard deviation of the x, y, z
      ** voxel locations and the mean and std of the flair intensity.
@@ -464,6 +465,19 @@ int DoIt(int argc, char * argv [])
         }
       }
 
+
+    const unsigned int numNeighbors = 1;
+    typedef flann::Matrix< float > FlannMatrixType;
+    FlannMatrixType trainingDataset;
+    flann::load_from_file(trainingDataset,inputClassifierModel,"trainingDataset");
+    flann::Index< flann::L2<float> > flannIndex(trainingDataset, flann::KDTreeIndexParams(4) );
+    flannIndex.buildIndex();
+
+    size_t numRows = 1;
+    FlannMatrixType query(new float[numFeatures*numRows], numRows, numFeatures);
+    flann::Matrix<int> indices(new int[query.rows*numNeighbors], query.rows, numNeighbors);
+    FlannMatrixType dists(new float[query.rows*numNeighbors], query.rows, numNeighbors);
+
     for( unsigned int w=0; w<testMeans.Size(); w++ )
       {
       testMeans[w] = testMeans[w] / count;
@@ -479,6 +493,7 @@ int DoIt(int argc, char * argv [])
     lesionMask->Allocate();
     lesionMask->SetSpacing(t1Image->GetSpacing());
     lesionMask->SetOrigin(t1Image->GetOrigin());
+    lesionMask->SetDirection(t1Image->GetDirection());
 
     FloatImageType::Pointer percentLesionImage = FloatImageType::New();
     FloatImageType::RegionType floatRegion;
@@ -488,11 +503,14 @@ int DoIt(int argc, char * argv [])
     percentLesionImage->Allocate();
     percentLesionImage->SetSpacing(t1Image->GetSpacing());
     percentLesionImage->SetOrigin(t1Image->GetOrigin());
+    percentLesionImage->SetDirection(t1Image->GetDirection());
 
 
     /* Grab the index and value, zero-mean and sigma correct, create a measurement vector,
      ** and push it onto the list of samples while pushing the label onto the list of labels.
      */
+    std::vector<ImageType::IndexType> sampleIndexes;
+
     for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr)
       {
 
@@ -506,19 +524,19 @@ int DoIt(int argc, char * argv [])
         query[0][1] = (idx[1]-testMeans[1])/testSigmas[1] ; 
         query[0][2] = (idx[2]-testMeans[2])/testSigmas[2] ; 
         query[0][3] = (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
-        query[0][4] = (subtractFilter->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
-        query[0][5] = (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
-        query[0][6] = (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
-        query[0][7] = (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
-        query[0][8] = (t2ImageHistMatched->GetPixel(idx) -testMeans[3]-1)/testSigmas[3] ; 
-        query[0][9] = (flairMedian3Filter->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
+        query[0][4] = (subtractFilter->GetOutput()->GetPixel(idx)-testMeans[4]-1)/testSigmas[4] ; 
+        query[0][5] = (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[5]-1)/testSigmas[5] ; 
+        query[0][6] = (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[6]-1)/testSigmas[6] ; 
+        query[0][7] = (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-testMeans[7]-1)/testSigmas[7] ; 
+        query[0][8] = (t2ImageHistMatched->GetPixel(idx) -testMeans[8]-1)/testSigmas[8] ; 
+        query[0][9] = (flairMedian3Filter->GetOutput()->GetPixel(idx)-testMeans[9]-1)/testSigmas[9] ; 
 
         for(unsigned int j=0;j<numFeatures;j++)
           {
-          query[0][0] = trainSignedRangeInverse[0] * (query[0][0] - trainMins[0]) - 1;
+          query[0][j] = trainSignedRangeInverse[j] * (query[0][j] - trainMins[j]) - 1;
           }
 
-        flannIndex.knnSearch(query, indices, dists, numNeighbors, flann::SearchParams(128));
+        flannIndex.knnSearch(query, indices, dists, numNeighbors, flann::SearchParams(16));
 
         unsigned int numLesion = 0;
         for(unsigned int j=0;j<numNeighbors;j++)
@@ -528,10 +546,10 @@ int DoIt(int argc, char * argv [])
             numLesion++;
             }
           }
-        float chanceLesion = float(numLesion)/float(numNeighbors);
+        float chanceLesion = float(numLesion)/float(numNeighbors)*100;
 
         percentLesionImage->SetPixel(idx,chanceLesion);
-        
+
         if(chanceLesion > inputLesionThreshold)
           {
           lesionMask->SetPixel(idx,1);
@@ -540,7 +558,7 @@ int DoIt(int argc, char * argv [])
           {
           lesionMask->SetPixel(idx,0);
           }
-        } 
+        }
       }
 
     delete[] trainingDataset.ptr();
@@ -588,6 +606,9 @@ int main( int argc, char * argv[] )
   if (inputMaskRefVolume.size() == 0) { violated = true; std::cout << "  --inputMaskRefVolume Required! "  << std::endl; }
   if (inputModel.size() == 0) { violated = true; std::cout << "  --inputModel Required! "  << std::endl; }
   if (inputClassifierModel.size() == 0) { violated = true; std::cout << "  --inputClassifierModel Required! "  << std::endl; }
+  if (outputLesionVolume.size() == 0) { violated = true; std::cout << "  --outputLesionVolume Required! "  << std::endl; }
+  if (outputLesionProbVolume.size() == 0) { violated = true; std::cout << "  --outputLesionProbVolume Required! "  << std::endl; }
+
   if (violated) exit(EXIT_FAILURE);
 
   try
