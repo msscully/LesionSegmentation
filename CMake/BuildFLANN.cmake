@@ -11,6 +11,7 @@ ExternalProject_Add(FLANN
   -DBUILD_PYTHON_BINDINGS:BOOL=OFF
   -DBUILD_MATLAB_BINDINGS:BOOL=OFF
   -DBUILD_CUDA_LIB:BOOL=OFF
+  -DHDF5_DIR:PATH=${CMAKE_BINARY_DIR}/HDF5-build
   DEPENDS HDF5
   )
 
@@ -30,7 +31,12 @@ ExternalProject_Add_Step(FLANN CopyHeaders
 #
 # use import_libraries (in ExtProjectSetup.cmake)
 # to import the libraries and creat the library var
+IF(BUILD_SHARED_LIBS)
+set(FLANN_LibNames flann_cpp flann_cpp-gd flann)
+ELSE(BUILD_SHARED_LIBS)
 set(FLANN_LibNames flann_cpp_s flann_cpp_s-gd flann_s)
+ENDIF(BUILD_SHARED_LIBS)
+
 set(FLANN_LibDir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
 import_libraries(EXTPROJECT FLANN LIBNAMES ${FLANN_LibNames}
@@ -53,3 +59,5 @@ set(FLANN_LIBRARY $<TARGET_FILE:flann_cpp>)
 ELSE(BUILD_SHARED_LIBS)
 set(FLANN_LIBRARY $<TARGET_FILE:flann_cpp_s>)
 ENDIF(BUILD_SHARED_LIBS)
+
+

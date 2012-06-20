@@ -1,7 +1,7 @@
 # build hdf5 as an external project
 ExternalProject_Add(HDF5
-  URL "http://www.hdfgroup.org/ftp/HDF5/current/src/hdf5-1.8.9.tar.gz"
-  URL_MD5 d1266bb7416ef089400a15cc7c963218
+  URL "http://www.hdfgroup.org/ftp/HDF5/prev-releases/hdf5-1.8.7/src/hdf5-1.8.7.tar.gz"
+  URL_MD5 37711d4bcb72997e93d495f97c76c33a  
   INSTALL_COMMAND ""
   UPDATE_COMMAND ""
   BINARY_DIR HDF5-build
@@ -9,6 +9,7 @@ ExternalProject_Add(HDF5
   CMAKE_ARGS
   ${CMAKE_COMMON_ARGS}
   -DHDF5_BUILD_CPP_LIB:BOOL=TRUE
+  -DHDF5_BUILD_HL_LIB:BOOL=TRUE
 #  -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}
   )
 
@@ -28,7 +29,7 @@ ExternalProject_Add_Step(HDF5 CopyHeaders
 #
 # use import_libraries (in ExtProjectSetup.cmake)
 # to import the libraries and creat the library var
-set(HDF5_LibNames hdf5 hdf5_cpp)
+set(HDF5_LibNames hdf5 hdf5_cpp hdf5_hl_cpp)
 set(HDF5_LibDir ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 
 import_libraries(EXTPROJECT HDF5 LIBNAMES ${HDF5_LibNames}
