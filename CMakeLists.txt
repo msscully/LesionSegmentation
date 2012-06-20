@@ -52,8 +52,6 @@ else(NOT LesionSegmentation_NestedProject)
 
   # build HDF5
   include(BuildHDF5)
-  # build FLANN
-  include(BuildFLANN)
 
   set(MODULE_NAME TrainModel)
 
@@ -118,13 +116,12 @@ else(NOT LesionSegmentation_NestedProject)
 
     set(cli_module_target_libraries
       ${ITK_LIBRARIES}
-      ${FLANN_LIBRARIES}
       ${HDF5_LIBRARIES}
       )
 
     foreach(proj TrainModel PredictLesions)
       SEMMacroBuildCLI(NAME ${proj}
-        ADDITIONAL_SRCS LesionSegmentationModel.h
+        ADDITIONAL_SRCS LesionSegmentationModel.h nanoflann/nanoflann.hpp
         TARGET_LIBRARIES ${cli_module_target_libraries}
         CLI_LIBRARY_WRAPPER_CXX ${CMAKE_CURRENT_LIST_DIR}/CLIWrapper.cxx
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -146,23 +143,16 @@ else(NOT LesionSegmentation_NestedProject)
         include(${Slicer_USE_FILE})
       endif()
 
-      #-----------------------------------------------------------------------------
-      # FLANN (required)
-      find_package(Flann REQUIRED)
-
-      #-----------------------------------------------------------------------------
-
       set(cli_module_include_directories
-	${FLANN_INCLUDE_DIRS}
         )
 
       set(cli_module_SRCS
 	LesionSegmentationModel.h
+	nanoflann/nanoflann.hpp
         )
 
       set(cli_module_target_libraries
         ${ITK_LIBRARIES}
-        ${FLANN_LIBRARIES}
         )
       set(MODULE_NAME TrainModel)
       #-----------------------------------------------------------------------------
