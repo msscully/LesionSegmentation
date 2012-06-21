@@ -47,8 +47,7 @@
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
 #include "itkChangeInformationImageFilter.h"
-#include "flann/flann.hpp"
-#include "flann/io/hdf5.h"
+#include "nanoflann/nanoflann.hpp"
 #include "LesionSegmentationModel.h"
 #include "TrainModelCLP.h"
 
@@ -63,9 +62,11 @@ namespace
 typedef short      PixelType;
 const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
+typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
+typedef LesionSegmentationModel::FLANNMatrixType FLANNMatrixType;
+typedef LesionSegmentationModel::LabelVectorType LabelVectorType;
 
 const PixelType imageExclusion = itk::NumericTraits<PixelType>::min( PixelType() );
-typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
 
 template<class DetectedPixelType> ImageType::Pointer castImage(std::string& imageFileName,DetectedPixelType)
 {
@@ -204,9 +205,9 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
 
   //TODO: reserve an estimated size based on number of input images,
   // the resolution of those images, and the %nonlesion samples.
-  std::vector< char > sampleLabels;
+  LabelVectorType sampleLabels;
 
-  std::vector< MeasurementArrayType > trainingSamples;
+  FLANNMatrixType trainingSamples;
 
   typedef itk::ImageRegionIteratorWithIndex< ImageType > ImageRegionIteratorType; 
 
@@ -304,6 +305,8 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
   radius3[0] = 3;
   radius3[1] = 3;
   radius3[2] = 3;
+
+  size_t lesionCount =0;
 
   try
     {
@@ -532,12 +535,13 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
           if(lesionImage->GetPixel(idx) !=0)          
             {
             trainingSamples.push_back(tempMeasurement);
-            sampleLabels.push_back(true);
+            sampleLabels.push_back(1);
+            lesionCount++;
             }
           else if ((unsigned int)(rand()%100+1) <= inputPercentNonLesion) /* We only want a fraction of non-lesion voxels */
             {
             trainingSamples.push_back(tempMeasurement);
-            sampleLabels.push_back(false);
+            sampleLabels.push_back(0);
             }
           } 
         }
@@ -546,42 +550,28 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
     MeasurementArrayType signedRangeInverse = CalculateSignedRangeInverse(trainMins,trainMaxes);
 
     const size_t numSamples = trainingSamples.size();
-
-    std::cout << "Populating FLANN matrix..." << std::endl;
-    typedef flann::Matrix< float > FlannMatrixType;
     
     std::cout <<"numSamples: " << numSamples << std::endl;
+    std::cout <<"numLesions: " << lesionCount << std::endl;
 
-    FlannMatrixType treeDataset = FlannMatrixType(new float[numSamples*numFeatures], numSamples, numFeatures);
     for( unsigned int i=0; i<numSamples; i++)
       {
       for( unsigned int j=0; j<numFeatures; j++)
         {
-        treeDataset[i][j] = signedRangeInverse[j] * (trainingSamples[i][j] - trainMins[j]) - 1;
+        trainingSamples[i][j] = signedRangeInverse[j] * (trainingSamples[i][j] - trainMins[j]) - 1;
         }
       }
 
-    //flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::AutotunedIndexParams() );
-    flann::Index< flann::L2<float> > flannIndex(treeDataset, flann::KDTreeIndexParams(4) );
-    std::cout << "Building FLANN index..." << std::endl;
-    flannIndex.buildIndex();                                                                                               
-    // FLANN has issues if this already exists.
-    remove(outputClassifierModel.c_str());
-
-    std::cout << "Saving FLANN index...." << std::endl;
-    flann::save_to_file(treeDataset,outputClassifierModel,"trainingDataset");
-
     lesionSegmentationModel.SetTrainingMins(trainMins);
     lesionSegmentationModel.SetTrainingMaxes(trainMaxes);
-    lesionSegmentationModel.SetTrainingMaxes(signedRangeInverse);
+    lesionSegmentationModel.SetTrainingSignedRangeInverse(signedRangeInverse);
     lesionSegmentationModel.SetLabelsSize(sampleLabels.size());
     lesionSegmentationModel.SetTrainingLabels(sampleLabels);
-    //lesionSegmentationModel.SetFLANNIndex(flannIndex);
+    lesionSegmentationModel.SetFLANNDataset(trainingSamples);
     lesionSegmentationModel.SaveModel(outputModel);
 
     std::cout << "Models saved." << std::endl;
 
-    delete[] treeDataset.ptr();
     }
   catch (itk::ExceptionObject &excep)
     {

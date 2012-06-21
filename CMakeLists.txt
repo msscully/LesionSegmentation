@@ -119,9 +119,14 @@ else(NOT LesionSegmentation_NestedProject)
       ${HDF5_LIBRARIES}
       )
 
+    set(cli_module_SRCS
+        LesionSegmentationModel.h
+        nanoflann/nanoflann.hpp
+        )
+
     foreach(proj TrainModel PredictLesions)
       SEMMacroBuildCLI(NAME ${proj}
-        ADDITIONAL_SRCS LesionSegmentationModel.h nanoflann/nanoflann.hpp
+        ADDITIONAL_SRCS ${cli_module_SRCS}
         TARGET_LIBRARIES ${cli_module_target_libraries}
         CLI_LIBRARY_WRAPPER_CXX ${CMAKE_CURRENT_LIST_DIR}/CLIWrapper.cxx
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -147,8 +152,8 @@ else(NOT LesionSegmentation_NestedProject)
         )
 
       set(cli_module_SRCS
-	LesionSegmentationModel.h
-	nanoflann/nanoflann.hpp
+        LesionSegmentationModel.h
+        nanoflann/nanoflann.hpp
         )
 
       set(cli_module_target_libraries

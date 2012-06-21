@@ -47,8 +47,7 @@
 #include "itkHistogramMatchingImageFilter.h"
 #include "itkStatisticsImageFilter.h"
 #include "itkChangeInformationImageFilter.h"
-#include "flann/flann.hpp"
-#include "flann/io/hdf5.h"
+#include "nanoflann/nanoflann.hpp"
 #include "LesionSegmentationModel.h"
 #include "PredictLesionsCLP.h"
 
@@ -63,6 +62,8 @@ namespace
 typedef short      PixelType;
 const unsigned int Dimension = 3;
 typedef itk::Image< PixelType,  Dimension >  ImageType;
+typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
+typedef LesionSegmentationModel::FLANNMatrixType FLANNMatrixType;
 
 const PixelType imageExclusion = itk::NumericTraits<PixelType>::min( PixelType() );
 
@@ -167,6 +168,89 @@ ImageType::Pointer HistogramMatch(ImageType::Pointer referenceImage, ImageType::
   return castFilter->GetOutput();
 }
 
+/* Adapted from nanoflann/examples/vector_of_vectors_example.cpp */
+template <class FLANNMatrixType, typename num_t = double, int DIM = -1, class Distance = nanoflann::metric_L2, typename IndexType = size_t>
+struct KDTreeVectorOfVectorsAdaptor
+{
+	typedef KDTreeVectorOfVectorsAdaptor<FLANNMatrixType,num_t,DIM,Distance> self_t;
+	typedef typename Distance::template traits<num_t,self_t>::distance_t metric_t;
+	typedef nanoflann::KDTreeSingleIndexAdaptor< metric_t,self_t,DIM,IndexType>  index_t;
+
+	index_t* index; //! The kd-tree index for the user to call its methods as usual with any other FLANN index.
+
+	/// Constructor: takes a const ref to the vector of vectors object with the data points
+	KDTreeVectorOfVectorsAdaptor(const int dimensionality, const FLANNMatrixType &mat, const int leaf_max_size = 10) : m_data(mat)
+	{
+		assert(mat.size()!=0 && mat[0].Size()!=0);
+		const size_t dims = mat[0].Size();
+		if (DIM>0 && static_cast<int>(dims)!=DIM)
+			throw std::runtime_error("Data set dimensionality does not match the 'DIM' template argument");
+		index = new index_t( dims, *this /* adaptor */, nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size, dims ) );
+		index->buildIndex();
+	}
+
+	~KDTreeVectorOfVectorsAdaptor() {
+		delete index;
+	}
+
+	const FLANNMatrixType &m_data;
+
+	/** Query for the \a num_closest closest points to a given point (entered as query_point[0:dim-1]).
+	  *  Note that this is a short-cut method for index->findNeighbors().
+	  *  The user can also call index->... methods as desired.
+	  * \note nChecks_IGNORED is ignored but kept for compatibility with the original FLANN interface.
+	  */
+	inline void QueryTree(const num_t *query_point, const size_t num_closest, IndexType *out_indices, num_t *out_distances_sq, const int nChecks_IGNORED = 10) const
+	{
+		//nanoflann::KNNResultSet<typename FLANNMatrixType::Scalar,IndexType> resultSet(num_closest);
+		nanoflann::KNNResultSet<float ,IndexType> resultSet(num_closest);
+		resultSet.init(out_indices, out_distances_sq);
+		index->findNeighbors(resultSet, query_point, nanoflann::SearchParams());
+	}
+
+	/** @name Interface expected by KDTreeSingleIndexAdaptor
+	  * @{ */
+
+	const self_t & derived() const {
+		return *this;
+	}
+	self_t & derived()       {
+		return *this;
+	}
+
+	// Must return the number of data points
+	inline size_t kdtree_get_point_count() const {
+		return m_data.size();
+	}
+
+	// Returns the distance between the vector "p1[0:size-1]" and the data point with index "idx_p2" stored in the class:
+	inline num_t kdtree_distance(const num_t *p1, const size_t idx_p2,size_t size) const
+	{
+		num_t s=0;
+		for (size_t i=0; i<size; i++) {
+			const num_t d= p1[i]-m_data[idx_p2][i];
+			s+=d*d;
+		}
+		return s;
+	}
+
+	// Returns the dim'th component of the idx'th point in the class:
+	inline num_t kdtree_get_pt(const size_t idx, int dim) const {
+		return m_data[idx][dim];
+	}
+
+	// Optional bounding-box computation: return false to default to a standard bbox computation loop.
+	//   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
+	//   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
+	template <class BBOX>
+	bool kdtree_get_bbox(BBOX &bb) const {
+		return false;
+	}
+
+	/** @} */
+
+}; // end of KDTreeVectorOfVectorsAdaptor
+
 int DoIt(int argc, char * argv [])
 {
   PARSE_ARGS;
@@ -199,7 +283,6 @@ int DoIt(int argc, char * argv [])
   LesionSegmentationModel lesionSegmentationModel = LesionSegmentationModel();
   lesionSegmentationModel.ReadModel(inputModel);
   const unsigned char numFeatures = lesionSegmentationModel.GetNumFeatures();
-  typedef LesionSegmentationModel::TrainingArrayType MeasurementArrayType;
   typedef LesionSegmentationModel::LabelVectorType LabelVectorType;
 
   MeasurementArrayType testMeans; testMeans.Fill(0);  
@@ -455,7 +538,7 @@ int DoIt(int argc, char * argv [])
         tempSamples[8] = t2ImageHistMatched->GetPixel(idx);
         tempSamples[9] = flairMedian3Filter->GetOutput()->GetPixel(idx);
 
-        for( unsigned int i=0; i<tempSamples.Size(); i++ )
+        for( size_t i=0; i<tempSamples.Size(); i++ )
           {
           testMeans[i] += tempSamples[i];
           testSigmas[i] += tempSamples[i] * tempSamples[i];
@@ -466,19 +549,20 @@ int DoIt(int argc, char * argv [])
       }
 
 
-    const unsigned int numNeighbors = 1;
-    typedef flann::Matrix< float > FlannMatrixType;
-    FlannMatrixType trainingDataset;
-    flann::load_from_file(trainingDataset,inputClassifierModel,"trainingDataset");
-    flann::Index< flann::L2<float> > flannIndex(trainingDataset, flann::KDTreeIndexParams(4) );
-    flannIndex.buildIndex();
+    const size_t numNeighbors = 30;
+    typedef KDTreeVectorOfVectorsAdaptor< FLANNMatrixType, float >  my_kd_tree_t;
+    FLANNMatrixType trainingDataset = lesionSegmentationModel.GetFLANNDataset();
+    std::cout << trainingDataset.size() << ":" << trainingDataset[0].Size() << "\n";
 
-    size_t numRows = 1;
-    FlannMatrixType query(new float[numFeatures*numRows], numRows, numFeatures);
-    flann::Matrix<int> indices(new int[query.rows*numNeighbors], query.rows, numNeighbors);
-    FlannMatrixType dists(new float[query.rows*numNeighbors], query.rows, numNeighbors);
+    my_kd_tree_t   trainingIndex(numFeatures, trainingDataset, 10 /* max leaf */ );
 
-    for( unsigned int w=0; w<testMeans.Size(); w++ )
+    std::vector<size_t> indices(numNeighbors,0);
+    std::vector<float> distsSquared(numNeighbors,0);
+    std::vector<float> query(numFeatures,0);
+
+    nanoflann::KNNResultSet<float> resultSet(numNeighbors);
+
+    for( size_t w=0; w<testMeans.Size(); w++ )
       {
       testMeans[w] = testMeans[w] / count;
       testSigmas[w] = testSigmas[w] / count;
@@ -509,62 +593,61 @@ int DoIt(int argc, char * argv [])
     /* Grab the index and value, zero-mean and sigma correct, create a measurement vector,
      ** and push it onto the list of samples while pushing the label onto the list of labels.
      */
-    std::vector<ImageType::IndexType> sampleIndexes;
-
+    size_t lesionCount = 0;
     for ( flairItr.GoToBegin(); !flairItr.IsAtEnd(); ++flairItr)
       {
 
       ImageType::IndexType idx = flairItr.GetIndex();
       if(maskImage->GetPixel(idx) != 0)
         {
+        query[0] = (idx[0]-testMeans[0])/testSigmas[0];
+        query[1] = (idx[1]-testMeans[1])/testSigmas[1];
+        query[2] = (idx[2]-testMeans[2])/testSigmas[2];
+        query[3] = (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3];
+        query[4] = (subtractFilter->GetOutput()->GetPixel(idx)-testMeans[4]-1)/testSigmas[4];
+        query[5] = (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[5]-1)/testSigmas[5];
+        query[6] = (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[6]-1)/testSigmas[6];
+        query[7] = (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-testMeans[7]-1)/testSigmas[7];
+        query[8] = (t2ImageHistMatched->GetPixel(idx) -testMeans[8]-1)/testSigmas[8];
+        query[9] = (flairMedian3Filter->GetOutput()->GetPixel(idx)-testMeans[9]-1)/testSigmas[9];
 
-        MeasurementArrayType tempMeasurement; tempMeasurement.Fill(0);
-
-        query[0][0] = (idx[0]-testMeans[0])/testSigmas[0] ; 
-        query[0][1] = (idx[1]-testMeans[1])/testSigmas[1] ; 
-        query[0][2] = (idx[2]-testMeans[2])/testSigmas[2] ; 
-        query[0][3] = (flairGrayscaleDilate2->GetOutput()->GetPixel(idx)-testMeans[3]-1)/testSigmas[3] ; 
-        query[0][4] = (subtractFilter->GetOutput()->GetPixel(idx)-testMeans[4]-1)/testSigmas[4] ; 
-        query[0][5] = (grayDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[5]-1)/testSigmas[5] ; 
-        query[0][6] = (whiteDistanceMapFilter->GetOutput()->GetPixel(idx)-testMeans[6]-1)/testSigmas[6] ; 
-        query[0][7] = (flairGrayscaleErode3->GetOutput()->GetPixel(idx)-testMeans[7]-1)/testSigmas[7] ; 
-        query[0][8] = (t2ImageHistMatched->GetPixel(idx) -testMeans[8]-1)/testSigmas[8] ; 
-        query[0][9] = (flairMedian3Filter->GetOutput()->GetPixel(idx)-testMeans[9]-1)/testSigmas[9] ; 
-
-        for(unsigned int j=0;j<numFeatures;j++)
+        for(size_t j=0;j<numFeatures;j++)
           {
-          query[0][j] = trainSignedRangeInverse[j] * (query[0][j] - trainMins[j]) - 1;
+          query[j] = trainSignedRangeInverse[j] * (query[j] - trainMins[j]) - 1;
           }
 
-        flannIndex.knnSearch(query, indices, dists, numNeighbors, flann::SearchParams(16));
+        trainingIndex.QueryTree(&query[0], numNeighbors, &indices[0], &distsSquared[0]);
 
-        unsigned int numLesion = 0;
-        for(unsigned int j=0;j<numNeighbors;j++)
+        size_t numLesion = 0;
+        for(size_t j=0;j<numNeighbors;j++)
           {
-          if(trainLabels[indices[0][j]])
+          if(trainLabels[indices[j]] > 0)
             {//lesion
             numLesion++;
             }
           }
-        float chanceLesion = float(numLesion)/float(numNeighbors)*100;
+        float chanceLesion = (float(numLesion)/float(numNeighbors))*100;
 
         percentLesionImage->SetPixel(idx,chanceLesion);
 
         if(chanceLesion > inputLesionThreshold)
           {
           lesionMask->SetPixel(idx,1);
+          lesionCount++;
           }
         else
           {
           lesionMask->SetPixel(idx,0);
           }
         }
+      else
+        {
+        lesionMask->SetPixel(idx,0);
+        percentLesionImage->SetPixel(idx,0);
+        }
       }
 
-    delete[] trainingDataset.ptr();
-    delete[] query.ptr();
-    delete[] indices.ptr();
-    delete[] dists.ptr();
+    std::cout << "lesionCount=" << lesionCount << "\n";
 
     typedef itk::ImageFileWriter<ImageType> WriterType;
     WriterType::Pointer lesionMaskWriter = WriterType::New();

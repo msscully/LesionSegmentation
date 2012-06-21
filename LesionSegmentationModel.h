@@ -22,9 +22,9 @@ private:
 public:
   static const unsigned char m_NumFeatures = 10;
   typedef itk::FixedArray< float, m_NumFeatures > TrainingArrayType;
-  typedef std::vector< char > LabelVectorType;
+  typedef std::vector< unsigned short > LabelVectorType;
   //typedef flann::Index< flann::L2<float> > FLANNIndexType;
-  //typedef flann::Matrix< float > FlannMatrixType;
+  typedef std::vector< TrainingArrayType > FLANNMatrixType;
 
   LesionSegmentationModel() : m_Swapped(false)
     {
@@ -37,13 +37,13 @@ public:
     {
     m_flannIndex = inputFLANNIndex;
     }
-
-  FLANNIndexType & GetFLANNDataset() {return m_flannDataset;}
+  */
+  FLANNMatrixType & GetFLANNDataset() {return m_flannDataset;}
   void SetFLANNDataset(FLANNMatrixType &inputFLANNDataset)
     {
     m_flannDataset = inputFLANNDataset;
     }
-  */
+  
   TrainingArrayType & GetTrainingMins() {return m_trainingMins;}
   void SetTrainingMins(TrainingArrayType &inputTrainingMins)
     {
@@ -100,7 +100,7 @@ public:
       //this->Write(input,this->GetT1RefImage());
       //this->Write(input,this->GetT2RefImage());
       //this->Write(input,this->GetFLAIRRefImage());
-      //this->Write(output,this->GetFLANNDataset());
+      this->Write(output,this->GetFLANNDataset());
       //this->Write(output,this->GetFLANNIndex());
      
       }
@@ -140,13 +140,20 @@ public:
       this->Read(input,this->GetLabelsSize());
       // This can be variable length, so we have to get the size from the 
       // file and use it to allocate memory for the read step.
-      this->m_trainingLabels = LabelVectorType(this->GetLabelsSize());
+      this->m_trainingLabels = LabelVectorType(this->GetLabelsSize(),0);
       this->Read(input,this->GetTrainingLabels());
       //TODO: Read Histograms or images for intensity standardization? 
       //this->Read(input,this->GetT1RefImage());
       //this->Read(input,this->GetT2RefImage());
       //this->Read(input,this->GetFLAIRRefImage());
-      //this->Read(input,this->GetFLANNDataset());
+      this->m_flannDataset.reserve(this->GetLabelsSize());
+      for(size_t i=0;i<this->GetLabelsSize();i++)
+        {
+        TrainingArrayType temp;temp.Fill(0);
+        this->m_flannDataset.push_back(temp);
+        }
+
+      this->Read(input,this->GetFLANNDataset());
       //this->Read(input,this->GetFLANNIndex());
      
       }
@@ -200,14 +207,14 @@ private:
 
   void Write(std::ofstream &f,const TrainingArrayType &vec)
     {
-    for(unsigned int y=0;y<vec.Size();y++)
+    for(size_t y=0;y<vec.Size();y++)
       {
       this->Write<TrainingArrayType::ValueType>(f,vec[y]);
       }
     }
   void Read(std::ifstream &f,TrainingArrayType &vec)
     {
-    for(unsigned int y=0;y<vec.Size();y++)
+    for(size_t y=0;y<vec.Size();y++)
       {
       this->Read<TrainingArrayType::ValueType>(f,vec[y]);
       }
@@ -215,14 +222,14 @@ private:
 
   void Write(std::ofstream &f,const LabelVectorType &vec)
     {
-    for(unsigned int y=0;y<vec.size();y++)
+    for(size_t y=0;y<vec.size();y++)
       {
       this->Write<LabelVectorType::value_type>(f,vec[y]);
       }
     }
   void Read(std::ifstream &f,LabelVectorType &vec)
     {
-    for(unsigned int y=0;y<vec.size();y++)
+    for(size_t y=0;y<vec.size();y++)
       {
       this->Read<LabelVectorType::value_type>(f,vec[y]);
       }
@@ -237,23 +244,35 @@ private:
     {
     flannIndex.loadIndex(f);
     }
-  void Write(std::ofstream &f,const FLANNIndexType &flannIndex)
-    {
-    flannIndex.saveIndex(f);
-    }
-  void Read(std::ifstream &f,FLANNIndexType &flannIndex)
-    {
-    flannIndex.loadIndex(f);
-    }
   */
+  void Write(std::ofstream &f,const FLANNMatrixType &flannMatrix)
+    {
+    for(size_t x=0;x<flannMatrix.size();x++)
+      {
+      for(size_t y=0;y<flannMatrix[0].Size();y++)
+        {
+        this->Write<float>(f,flannMatrix[x][y]);
+        }
+      }
+    }
+  void Read(std::ifstream &f,FLANNMatrixType &flannMatrix)
+    {
+    for(size_t x=0;x<flannMatrix.size();x++)
+      {
+      for(size_t y=0;y<flannMatrix[0].Size();y++)
+        {
+        this->Read<float>(f,flannMatrix[x][y]);
+        }
+      }
+    }
 
   TrainingArrayType m_trainingMins;
   TrainingArrayType m_trainingMaxes;
   TrainingArrayType m_trainingSignedRangeInverse;
   LabelVectorType  m_trainingLabels;
-  unsigned long m_trainingLabelsSize;
+  size_t m_trainingLabelsSize;
   //FLANNIndexType m_flannIndex;
-  //FLANNDatasetType m_flannDataset
+  FLANNMatrixType m_flannDataset;
 };
 
 #endif // LesionSegmentationModel_h
