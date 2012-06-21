@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8" ?> 
+<executable>
+  <category>Segmentation.Lesion Segmentation</category>   
+  <title>Train a Lesion Segmentation Model</title> 
+
+  <description>Creates a model for segmentation of lesions from a list of images, brain masks, and lesion label maps.</description>
+  <version>0.2.0</version> 
+  <documentation-url>http://www.slicer.org/slicerWiki/index.php?title=Documentation/4.1/Extensions/LesionSegmentation</documentation-url> 
+  <license>Slicer http://www.slicer.org/pages/LicenseText</license> 
+  <contributor>This tool was developed by Mark Scully (Biomedical Mining, LLC).</contributor> 
+
+
+  <parameters>
+    <label>Input Options</label> 
+    <description>Input options for lesion training.</description>
+
+    <string-vector>
+      <name>inputLesionVolumes</name> 
+      <longflag>--inputLesionVolumes</longflag> 
+      <description>Required: A comma separated list of Lesion images</description> 
+      <label>Input Lesion Volumes</label> 
+      <channel>input</channel> 
+    </string-vector>  
+
+    <string-vector>
+      <name>inputT1Volumes</name> 
+      <longflag>--inputT1Volumes</longflag> 
+      <description>Required: A comma separated list of T1 images</description> 
+      <label>Input T1 Volumes</label> 
+      <channel>input</channel> 
+    </string-vector>  
+
+    <string-vector>
+      <name>inputT2Volumes</name> 
+      <longflag>--inputT2Volumes</longflag> 
+      <description>Required: A comma separated list of T2 images</description> 
+      <label>Input T2 Volumes</label> 
+      <channel>input</channel> 
+    </string-vector>  
+
+    <string-vector>
+      <name>inputFLAIRVolumes</name> 
+      <longflag>--inputFLAIRVolumes</longflag> 
+      <description>Required: A comma separated list of FLAIR images</description> 
+      <label>Input FLAIR Volumes</label> 
+      <channel>input</channel> 
+    </string-vector>  
+
+    <string-vector>
+      <name>inputMaskVolumes</name> 
+      <longflag>--inputMaskVolumes</longflag> 
+      <description>Required: A comma separated list of Brain Mask images</description> 
+      <label>Input Mask Volumes</label> 
+      <channel>input</channel> 
+    </string-vector>  
+
+    <integer>
+      <name>inputIndexOfBestImages</name>
+      <longflag>--inputIndexOfBestImages</longflag>
+      <description>The index in the list of images that represents the best T1, T2, and FLAIR images.  These images will be used as the standard that the other images are intensity standardized to.  It defaults to the first image in the list. (This number is 1-indexed)</description>
+      <label>Highest Quality Images Index</label>
+      <default>1</default>
+    </integer>
+
+  </parameters>
+
+  <parameters advanced="true">
+    <label>Advanced Options</label>
+    <description>Advanced input parameters</description>
+
+    <integer>
+      <name>inputPercentNonLesion</name>
+      <longflag>--inputPercentNonLesion</longflag>
+      <description>What percent of the nonlesion voxels should be used for training.  Higher numbers results in larger model files and potentially slower runtimes.  Default value is 5.</description>
+      <label>Percent NonLesion</label>
+      <default>5</default>
+    </integer>
+
+  </parameters>
+
+  <parameters>
+    <label>Output Options</label>
+    <description>Output Options</description>
+
+    <string>
+      <name>outputModel</name> 
+      <longflag>--outputModel</longflag> 
+      <description>Required: Filename to save the generated model to.</description> 
+      <label>Output Model Filename</label> 
+      <channel>output</channel> 
+    </string>  
+
+  </parameters>
+
+</executable>

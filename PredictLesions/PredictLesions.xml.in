@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8" ?> 
+  <executable>
+  <category>Segmentation.Lesion Segmentation</category>   
+  <title> Predict Lesions </title> 
+  
+  <description>Creates a predicted lesion mask for a set of co-registered, AC-PC aligned, and bias-corrected T1, T2, and FLAIR images using the provided lesion segmentation model and reference T1, T2, and FLAIR (used for intensity standardization).</description>
+  <version>0.2.0</version> 
+  <documentation-url>http://www.slicer.org/slicerWiki/index.php?title=Documentation/4.1/Extensions/LesionSegmentation</documentation-url> 
+  <license>Slicer http://www.slicer.org/pages/LicenseText</license> 
+  <contributor>This tool was developed by Mark Scully (Biomedical Mining, LLC).</contributor> 
+
+  <parameters>
+    <label>Input Parameters</label> 
+    <description>Input parameters for analysis.</description>
+
+    <image>
+      <name>inputT1Volume</name> 
+      <longflag>--inputT1Volume</longflag> 
+      <description>Required: input T1 image</description> 
+      <label>Input T1 Volume</label> 
+      <channel>input</channel> 
+    </image>  
+ 
+    <image>
+      <name>inputT2Volume</name> 
+      <longflag>--inputT2Volume</longflag> 
+      <description>Required: input T2 image</description> 
+      <label>Input T2 Volume</label> 
+      <channel>input</channel> 
+    </image>  
+      
+    <image>
+      <name>inputFLAIRVolume</name> 
+      <longflag>--inputFLAIRVolume</longflag> 
+      <description>Required: input FLAIR image</description> 
+      <label>Input FLAIR Volume</label> 
+      <channel>input</channel> 
+    </image>  
+
+    <image>
+      <name>inputMaskVolume</name>
+      <longflag>--inputMaskVolume</longflag>
+      <description>Required: input brain mask image</description>
+      <label>Input Brain Mask Volume</label>
+      <channel>input</channel>
+    </image>
+
+    <image>
+      <name>inputT1RefVolume</name> 
+      <longflag>--inputT1RefVolume</longflag> 
+      <description>Required: input T1 image</description> 
+      <label>Input T1 Reference Volume</label> 
+      <channel>input</channel> 
+    </image>  
+ 
+    <image>
+      <name>inputT2RefVolume</name> 
+      <longflag>--inputT2RefVolume</longflag> 
+      <description>Required: input T2 image</description> 
+      <label>Input T2 Reference Volume</label> 
+      <channel>input</channel> 
+    </image>  
+      
+    <image>
+      <name>inputFLAIRRefVolume</name> 
+      <longflag>--inputFLAIRRefVolume</longflag> 
+      <description>Required: input FLAIR image</description> 
+      <label>Input FLAIR Reference Volume</label> 
+      <channel>input</channel> 
+    </image>  
+
+    <image>
+      <name>inputMaskRefVolume</name>
+      <longflag>--inputMaskRefVolume</longflag>
+      <description>Required: input brain mask image</description>
+      <label>Input Brain Mask Reference Volume</label>
+      <channel>input</channel>
+    </image>
+
+    <file>
+      <name>inputModel</name>
+      <longflag>--inputModel</longflag>
+      <description>The file containing the lesion segmentation model.</description>
+      <label>Input Lesion Segmentation Model File</label>
+      <channel>input</channel>
+    </file>
+
+  </parameters>
+
+  <parameters advanced="true">
+    <label>Advanced Options</label>
+    <description>Advanced input parameters</description>
+
+    <integer>
+      <name>inputLesionThreshold</name>
+      <longflag>--inputLesionThreshold</longflag>
+      <description>Percent value above which a voxel should be considered lesion.  Increasing this number increases false negatives and decreases false positives. Default value is 30.</description>
+      <label>Percent Lesion Threshold</label>
+      <default>30</default>
+    </integer>
+
+  </parameters>
+  
+  <parameters>
+    
+    <image>
+      <name>outputLesionVolume</name>
+      <longflag>--outputLesionVolume</longflag>
+      <description>Required: output lesion mask image</description>
+      <label>Output Lesion Mask Volume</label>
+      <channel>output</channel>
+    </image>
+
+    <image>
+      <name>outputLesionProbVolume</name>
+      <longflag>--outputLesionProbVolume</longflag>
+      <description>Required: output lesion probability image</description>
+      <label>Output Lesion Probability Volume</label>
+      <channel>output</channel>
+    </image>
+
+  </parameters>
+  </executable>
