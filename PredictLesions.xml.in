@@ -85,14 +85,6 @@
       <channel>input</channel>
     </file>
 
-    <file>
-      <name>inputClassifierModel</name>
-      <longflag>--inputClassifierModel</longflag>
-      <description>The file containing the lesion segmentation classifier model.</description>
-      <label>Input Lesion Segmentation Classifier Model File</label>
-      <channel>input</channel>
-    </file>
-
   </parameters>
 
   <parameters advanced="true">

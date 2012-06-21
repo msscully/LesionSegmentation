@@ -251,23 +251,8 @@ struct KDTreeVectorOfVectorsAdaptor
 
 }; // end of KDTreeVectorOfVectorsAdaptor
 
-int DoIt(int argc, char * argv [])
+int DoIt(std::string inputT1Volume, std::string inputT2Volume, std::string inputFLAIRVolume, std::string inputMaskVolume, std::string inputT1RefVolume, std::string inputT2RefVolume, std::string inputFLAIRRefVolume, std::string inputMaskRefVolume, std::string inputModel, int inputLesionThreshold, std::string outputLesionVolume, std::string outputLesionProbVolume)
 {
-  PARSE_ARGS;
-
-  bool violated=false;
-  if (inputT1Volume.size() == 0) { violated = true; std::cout << "  --inputT1Volume Required! "  << std::endl; }
-  if (inputT2Volume.size() == 0) { violated = true; std::cout << "  --inputT2Volume Required! "  << std::endl; }
-  if (inputFLAIRVolume.size() == 0) { violated = true; std::cout << "  --inputFLAIRVolume Required! "  << std::endl; }
-  if (inputMaskVolume.size() == 0) { violated = true; std::cout << "  --inputMaskVolume Required! "  << std::endl; }
-  if (inputT1RefVolume.size() == 0) { violated = true; std::cout << "  --inputT1RefVolume Required! "  << std::endl; }
-  if (inputT2RefVolume.size() == 0) { violated = true; std::cout << "  --inputT2RefVolume Required! "  << std::endl; }
-  if (inputFLAIRRefVolume.size() == 0) { violated = true; std::cout << "  --inputFLAIRRefVolume Required! "  << std::endl; }
-  if (inputMaskRefVolume.size() == 0) { violated = true; std::cout << "  --inputMaskRefVolume Required! "  << std::endl; }
-  if (inputModel.size() == 0) { violated = true; std::cout << "  --inputModel Required! "  << std::endl; }
-  if (inputClassifierModel.size() == 0) { violated = true; std::cout << "  --inputClassifierModel Required! "  << std::endl; }
-  if (violated) exit(EXIT_FAILURE);
-
   typedef itk::Image< float, 3 > FloatImageType;
   typedef itk::ImageFileReader< ImageType  >  ReaderType;
 
@@ -665,7 +650,7 @@ int DoIt(int argc, char * argv [])
     }
   catch (itk::ExceptionObject &excep)
     {
-    std::cerr << argv[0] << ": exception caught !" << std::endl;
+    std::cerr << "Exception caught !" << std::endl;
     std::cerr << excep << std::endl;
     return EXIT_FAILURE;
     }
@@ -688,7 +673,6 @@ int main( int argc, char * argv[] )
   if (inputFLAIRRefVolume.size() == 0) { violated = true; std::cout << "  --inputFLAIRRefVolume Required! "  << std::endl; }
   if (inputMaskRefVolume.size() == 0) { violated = true; std::cout << "  --inputMaskRefVolume Required! "  << std::endl; }
   if (inputModel.size() == 0) { violated = true; std::cout << "  --inputModel Required! "  << std::endl; }
-  if (inputClassifierModel.size() == 0) { violated = true; std::cout << "  --inputClassifierModel Required! "  << std::endl; }
   if (outputLesionVolume.size() == 0) { violated = true; std::cout << "  --outputLesionVolume Required! "  << std::endl; }
   if (outputLesionProbVolume.size() == 0) { violated = true; std::cout << "  --outputLesionProbVolume Required! "  << std::endl; }
 
@@ -696,7 +680,7 @@ int main( int argc, char * argv[] )
 
   try
     {
-    return DoIt( argc, argv );
+    return DoIt(inputT1Volume, inputT2Volume, inputFLAIRVolume, inputMaskVolume, inputT1RefVolume, inputT2RefVolume, inputFLAIRRefVolume, inputMaskRefVolume, inputModel, inputLesionThreshold, outputLesionVolume, outputLesionProbVolume);
     }
   catch( itk::ExceptionObject & excep )
     {

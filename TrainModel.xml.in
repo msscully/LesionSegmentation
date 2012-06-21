@@ -90,14 +90,6 @@
       <channel>output</channel> 
     </string>  
 
-    <string>
-      <name>outputClassifierModel</name> 
-      <longflag>--outputClassifierModel</longflag> 
-      <description>Required: Filename to save the generated classifier model to.</description> 
-      <label>Output Classifier Model Filename</label> 
-      <channel>output</channel> 
-    </string>  
-
   </parameters>
 
 </executable>

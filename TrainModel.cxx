@@ -181,9 +181,8 @@ MeasurementArrayType CalculateSignedRangeInverse(MeasurementArrayType& mins, Mea
   return signedRangeInverse;
 }
 
-int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> inputT2Volumes, std::vector<std::string> inputFLAIRVolumes, std::vector<std::string> inputMaskVolumes, std::vector<std::string> inputLesionVolumes, std::string outputModel, std::string outputClassifierModel, unsigned int inputIndexOfBestImages, unsigned int inputPercentNonLesion)
+int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> inputT2Volumes, std::vector<std::string> inputFLAIRVolumes, std::vector<std::string> inputMaskVolumes, std::vector<std::string> inputLesionVolumes, std::string outputModel, unsigned int inputIndexOfBestImages, unsigned int inputPercentNonLesion)
 {
-
   typedef itk::ImageFileReader< ImageType  >  ReaderType;
 
   typedef itk::MaskImageFilter< ImageType, ImageType, ImageType > MaskFilterType;
@@ -595,7 +594,6 @@ int main( int argc, char * argv[] )
   if (inputT1Volumes.size() == 0) { violated = true; std::cout << "  --inputT1Volumes Required! "  << std::endl; }
   if (inputT2Volumes.size() == 0) { violated = true; std::cout << "  --inputT2Volumes Required! "  << std::endl; }
   if (outputModel.size() == 0) { violated = true; std::cout << "  --outputModel Required! "  << std::endl; }
-  if (outputClassifierModel.size() == 0) { violated = true; std::cout << "  --outputClassifierModel Required! "  << std::endl; }
   if ((inputFLAIRVolumes.size() != inputLesionVolumes.size()) && 
     (inputMaskVolumes.size() != inputFLAIRVolumes.size()) &&
     (inputT1Volumes.size() != inputFLAIRVolumes.size()) &&
@@ -606,7 +604,7 @@ int main( int argc, char * argv[] )
 
   try
     {
-    return DoIt(inputT1Volumes,inputT2Volumes,inputFLAIRVolumes,inputMaskVolumes,inputLesionVolumes,outputModel,outputClassifierModel,inputIndexOfBestImages,inputPercentNonLesion);
+    return DoIt(inputT1Volumes,inputT2Volumes,inputFLAIRVolumes,inputMaskVolumes,inputLesionVolumes,outputModel,inputIndexOfBestImages,inputPercentNonLesion);
     }
   catch( itk::ExceptionObject & excep )
     {
