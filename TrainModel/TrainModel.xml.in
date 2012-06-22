@@ -71,7 +71,7 @@
     <integer>
       <name>inputPercentNonLesion</name>
       <longflag>--inputPercentNonLesion</longflag>
-      <description>What percent of the nonlesion voxels should be used for training.  Higher numbers results in larger model files and potentially slower runtimes.  Default value is 5.</description>
+      <description>What percent of the nonlesion voxels should be used for training.  Higher numbers results in larger model files and potentially slower runtimes. </description>
       <label>Percent NonLesion</label>
       <default>5</default>
     </integer>

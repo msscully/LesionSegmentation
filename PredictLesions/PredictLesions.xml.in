@@ -94,14 +94,16 @@
     <integer>
       <name>inputLesionThreshold</name>
       <longflag>--inputLesionThreshold</longflag>
-      <description>Percent value above which a voxel should be considered lesion.  Increasing this number increases false negatives and decreases false positives. Default value is 30.</description>
+      <description>Percent value above which a voxel should be considered lesion.  Increasing this number increases false negatives and decreases false positives.</description>
       <label>Percent Lesion Threshold</label>
-      <default>30</default>
+      <default>70</default>
     </integer>
 
   </parameters>
   
   <parameters>
+    <label>Output Parameters</label> 
+    <description>Output parameters.</description>
     
     <image>
       <name>outputLesionVolume</name>
