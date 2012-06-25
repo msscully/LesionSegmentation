@@ -78,9 +78,8 @@ template<class DetectedPixelType> ImageType::Pointer castImage(std::string& imag
   typename CastImageFilterType::Pointer castImageFilter = CastImageFilterType::New();
   castImageFilter->SetInput(imageReader->GetOutput());
   castImageFilter->Update();
-  typename ImageType::Pointer castImage = castImageFilter->GetOutput();
 
-  return castImage;
+  return castImageFilter->GetOutput();
 }
 
 ImageType::Pointer ReadAndConvertImage(std::string& imageFileName)
@@ -686,5 +685,4 @@ int main( int argc, char * argv[] )
     std::cerr << excep << std::endl;
     return EXIT_FAILURE;
     }
-  return EXIT_SUCCESS;
 }
