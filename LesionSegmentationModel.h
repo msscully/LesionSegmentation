@@ -31,50 +31,105 @@ public:
     InitializeModel();
     }
 
-  /*TODO: Get FLANN saving to work.
-  FLANNIndexType & GetFLANNIndex() {return m_flannIndex;}
-  void SetFLANNIndex(FLANNIndexType &inputFLANNIndex)
+  bool operator==(const LesionSegmentationModel &other) const
     {
-    m_flannIndex = inputFLANNIndex;
+    if(this->GetTrainingMins() != other.GetTrainingMins())
+      {
+      std::cout << "TrainingMins do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetTrainingMaxes() != other.GetTrainingMaxes())
+      {
+      std::cout << "TrainingMaxes do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetTrainingSignedRangeInverse() != other.GetTrainingSignedRangeInverse())
+      {
+      std::cout << "TrainingSignedRangeInverses do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetTrainingLabels() != other.GetTrainingLabels())
+      {
+      std::cout << "TrainingLabels do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetLabelsSize() != other.GetLabelsSize())
+      {
+      std::cout << "Label sizes do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetNumFeatures() != other.GetNumFeatures())
+      {
+      std::cout << "numFeatures do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetFLANNDataset().size() != other.GetFLANNDataset().size())
+      {
+      std::cout << "Number of dataset rows do not match!" << std::endl;
+      return false;
+      }
+    if(this->GetFLANNDataset().size() > 0)
+      {
+      if(this->GetFLANNDataset()[0].Size() != other.GetFLANNDataset()[0].Size())
+        {
+        std::cout << "Number of dataset columns do not match!" << std::endl;
+        return false;
+        }
+      for(size_t i=0; i<this->GetFLANNDataset().size(); i++)
+        {
+        if(this->GetFLANNDataset()[i] != other.GetFLANNDataset()[i])
+          {
+          std::cout << "Dataset elements do not match!" << std::endl;
+          return false;
+          }
+        }
+      }
+
+    return true;
     }
-  */
-  FLANNMatrixType & GetFLANNDataset() {return m_flannDataset;}
+
+  bool operator!=(const LesionSegmentationModel &other) const
+    {
+    return !(*this == other);
+    }
+
+  const FLANNMatrixType & GetFLANNDataset() const {return m_flannDataset;}
   void SetFLANNDataset(FLANNMatrixType &inputFLANNDataset)
     {
     m_flannDataset = inputFLANNDataset;
     }
   
-  TrainingArrayType & GetTrainingMins() {return m_trainingMins;}
+  const TrainingArrayType & GetTrainingMins() const {return m_trainingMins;}
   void SetTrainingMins(TrainingArrayType &inputTrainingMins)
     {
     m_trainingMins = inputTrainingMins;
     }
 
-  TrainingArrayType & GetTrainingMaxes() {return m_trainingMaxes;}
+  const TrainingArrayType & GetTrainingMaxes() const {return m_trainingMaxes;}
   void SetTrainingMaxes(TrainingArrayType &inputTrainingMaxes)
     {
     m_trainingMaxes = inputTrainingMaxes;
     }
 
-  TrainingArrayType & GetTrainingSignedRangeInverse() {return m_trainingSignedRangeInverse;}
+  const TrainingArrayType & GetTrainingSignedRangeInverse() const {return m_trainingSignedRangeInverse;}
   void SetTrainingSignedRangeInverse(TrainingArrayType &inputTrainingSignedRangeInverse)
     {
     m_trainingSignedRangeInverse = inputTrainingSignedRangeInverse;
     }
 
-  LabelVectorType & GetTrainingLabels() {return m_trainingLabels;}
+  const LabelVectorType & GetTrainingLabels() const {return m_trainingLabels;}
   void SetTrainingLabels(LabelVectorType &inputTrainingLabels)
     {
     m_trainingLabels = inputTrainingLabels;
     }
 
-  size_t & GetLabelsSize() {return m_trainingLabelsSize;}
+  const size_t & GetLabelsSize() const {return m_trainingLabelsSize;}
   void SetLabelsSize(size_t inputLabelsSize)
     {
     m_trainingLabelsSize = inputLabelsSize;
     }
 
-  int GetNumFeatures(){return m_NumFeatures;}
+  int GetNumFeatures() const {return m_NumFeatures;}
 
   void SaveModel(const std::string &filename)
     {
@@ -85,7 +140,7 @@ public:
       {
       std::cerr << "Can't write " << filename << std::endl;
       std::cerr.flush();
-      exit(-1);
+      exit(EXIT_FAILURE);
       }
     try
       {
@@ -120,7 +175,7 @@ public:
       {
       std::cerr << "Can't read " << filename << std::endl;
       std::cerr.flush();
-      exit(-1);
+      exit(EXIT_FAILURE);
       }
     try
       {
@@ -134,14 +189,14 @@ public:
         {
         this->m_Swapped = true;
         }
-      this->Read(input,this->GetTrainingMins());
-      this->Read(input,this->GetTrainingMaxes());
-      this->Read(input,this->GetTrainingSignedRangeInverse());
-      this->Read(input,this->GetLabelsSize());
+      this->Read(input,this->m_trainingMins);
+      this->Read(input,this->m_trainingMaxes);
+      this->Read(input,this->m_trainingSignedRangeInverse);
+      this->Read(input,this->m_trainingLabelsSize);
       // This can be variable length, so we have to get the size from the 
       // file and use it to allocate memory for the read step.
       this->m_trainingLabels = LabelVectorType(this->GetLabelsSize(),0);
-      this->Read(input,this->GetTrainingLabels());
+      this->Read(input,this->m_trainingLabels);
       //TODO: Read Histograms or images for intensity standardization? 
       //this->Read(input,this->GetT1RefImage());
       //this->Read(input,this->GetT2RefImage());
@@ -153,7 +208,7 @@ public:
         this->m_flannDataset.push_back(temp);
         }
 
-      this->Read(input,this->GetFLANNDataset());
+      this->Read(input,this->m_flannDataset);
       //this->Read(input,this->GetFLANNIndex());
      
       }
@@ -161,7 +216,8 @@ public:
       {
       std::cerr << "Read failed for " << filename << std::endl;
       std::cerr << e << std::endl;
-      exit(-1);
+      std::cerr.flush();
+      exit(EXIT_FAILURE);
       }
     input.close();
     }
