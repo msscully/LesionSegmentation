@@ -552,25 +552,23 @@ int DoIt(std::string inputT1Volume, std::string inputT2Volume, std::string input
       testSigmas[w] = sqrt(testSigmas[w] - (testMeans[w]*testMeans[w]));
       }
 
-    ImageType::Pointer lesionMask = ImageType::New();
-    ImageType::RegionType region;
+    typedef itk::Image<short,Dimension> OutputImageType;
+    OutputImageType::Pointer lesionMask = OutputImageType::New();
+    OutputImageType::RegionType region;
     region.SetSize(t1Image->GetLargestPossibleRegion().GetSize());
     region.SetIndex(t1Image->GetLargestPossibleRegion().GetIndex());
     lesionMask->SetRegions(region);
-    lesionMask->Allocate();
     lesionMask->SetSpacing(t1Image->GetSpacing());
     lesionMask->SetOrigin(t1Image->GetOrigin());
     lesionMask->SetDirection(t1Image->GetDirection());
+    lesionMask->Allocate();
 
-    ImageType::Pointer percentLesionImage = ImageType::New();
-    ImageType::RegionType floatRegion;
-    floatRegion.SetSize(t1Image->GetLargestPossibleRegion().GetSize());
-    floatRegion.SetIndex(t1Image->GetLargestPossibleRegion().GetIndex());
-    percentLesionImage->SetRegions(floatRegion);
-    percentLesionImage->Allocate();
+    OutputImageType::Pointer percentLesionImage = OutputImageType::New();
+    percentLesionImage->SetRegions(region);
     percentLesionImage->SetSpacing(t1Image->GetSpacing());
     percentLesionImage->SetOrigin(t1Image->GetOrigin());
     percentLesionImage->SetDirection(t1Image->GetDirection());
+    percentLesionImage->Allocate();
 
 
     /* Grab the index and value, zero-mean and sigma correct, create a measurement vector,
@@ -609,7 +607,7 @@ int DoIt(std::string inputT1Volume, std::string inputT2Volume, std::string input
             numLesion++;
             }
           }
-        float chanceLesion = (ImageType::PixelType)(float(numLesion)/float(numNeighbors))*100;
+        OutputImageType::PixelType chanceLesion = (OutputImageType::PixelType)(100*((float)(numLesion)/(float)(numNeighbors)));
 
         percentLesionImage->SetPixel(idx,chanceLesion);
 
@@ -632,14 +630,16 @@ int DoIt(std::string inputT1Volume, std::string inputT2Volume, std::string input
 
     std::cout << "lesionCount=" << lesionCount << "\n";
 
-    typedef itk::ImageFileWriter<ImageType> WriterType;
+    typedef itk::ImageFileWriter<OutputImageType> WriterType;
     WriterType::Pointer lesionMaskWriter = WriterType::New();
     lesionMaskWriter->SetInput(lesionMask);
+    lesionMaskWriter->SetUseCompression(true);
     lesionMaskWriter->SetFileName(outputLesionVolume);
     lesionMaskWriter->Update();
 
     WriterType::Pointer lesionPercentWriter = WriterType::New();
     lesionPercentWriter->SetInput(percentLesionImage);
+    lesionPercentWriter->SetUseCompression(true);
     lesionPercentWriter->SetFileName(outputLesionProbVolume);
     lesionPercentWriter->Update();
 
