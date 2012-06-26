@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?> 
+<executable>
+  <category>Segmentation.Lesion Segmentation</category>   
+  <title>Compare two lesion segmentation models (for testing).</title> 
+
+  <description>Compares two lesion segmentation files.</description>
+  <version>0.2.0</version> 
+  <documentation-url>http://www.slicer.org/slicerWiki/index.php?title=Documentation/4.1/Extensions/LesionSegmentation</documentation-url> 
+  <license>Slicer http://www.slicer.org/pages/LicenseText</license> 
+  <contributor>This tool was developed by Mark Scully (Biomedical Mining, LLC).</contributor> 
+
+
+  <parameters>
+    <label>Input Options</label> 
+    <description>Input options for lesion training.</description>
+
+    <file>
+      <name>inputModel1</name>
+      <longflag>--inputModel1</longflag>
+      <description>The first lesion model file.</description>
+      <label>First Lesion Model File</label>
+    </file>
+
+    <file>
+      <name>inputModel2</name>
+      <longflag>--inputModel2</longflag>
+      <description>The second lesion model file.</description>
+      <label>Second Lesion Model File</label>
+    </file>
+
+    <integer>
+      <name>inputPercentDiff</name>
+      <longflag>--inputPercentDiff</longflag>
+      <description>If the models are not an exact match, the percent difference that the non-lesion count can vary and still be considered equal.</description>
+      <label>Percent Difference</label>
+      <default>9</default>
+    </integer>
+
+  </parameters>
+
+</executable>
