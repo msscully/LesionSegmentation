@@ -82,13 +82,13 @@
     <label>Output Options</label>
     <description>Output Options</description>
 
-    <string>
+    <file>
       <name>outputModel</name> 
       <longflag>--outputModel</longflag> 
       <description>Required: Filename to save the generated model to.</description> 
       <label>Output Model Filename</label> 
       <channel>output</channel> 
-    </string>  
+    </file>  
 
   </parameters>
 

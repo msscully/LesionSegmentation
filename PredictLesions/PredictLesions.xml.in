@@ -105,7 +105,7 @@
     <label>Output Parameters</label> 
     <description>Output parameters.</description>
     
-    <image>
+    <image type="label">
       <name>outputLesionVolume</name>
       <longflag>--outputLesionVolume</longflag>
       <description>Required: output lesion mask image</description>
