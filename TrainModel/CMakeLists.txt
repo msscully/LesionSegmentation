@@ -3,6 +3,8 @@
 cmake_minimum_required(VERSION 2.8.7)
 
 set(MODULE_NAME TrainModel)
+set(MODULE_TITLE ${MODULE_NAME})
+string(TOUPPER ${MODULE_NAME} MODULE_NAME_UPPER)
 
 if(NOT Slicer_SOURCE_DIR)
   set(MODULE_HOMEPAGE "http://www.slicer.org/slicerWiki/index.php/Documentation/4.1/Modules/TrainModel")
@@ -40,7 +42,7 @@ configure_file(
   @ONLY
   )
 
-slicerMacroBuildCLI(
+SEMMacroBuildCLI(
   NAME ${MODULE_NAME}
   #LOGO_HEADER ${Slicer_SOURCE_DIR}/Resources/NAMICLogo.h
   TARGET_LIBRARIES ${cli_module_target_libraries}

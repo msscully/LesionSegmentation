@@ -40,7 +40,7 @@ configure_file(
   @ONLY
   )
 
-slicerMacroBuildCLI(
+SEMMacroBuildCLI(
   NAME ${MODULE_NAME}
   #LOGO_HEADER ${Slicer_SOURCE_DIR}/Resources/NAMICLogo.h
   TARGET_LIBRARIES ${cli_module_target_libraries}
