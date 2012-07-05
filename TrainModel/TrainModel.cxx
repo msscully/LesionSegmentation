@@ -238,11 +238,6 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
   refFLAIRMaskFilter->SetInput2(maskBinaryFilter->GetOutput());
   refFLAIRMaskFilter->Update();
 
-  /* Need to loop over all the input images, brain mask them, combine the flair and lesion
-   ** values into a vector image, calculate stats, normalize the data, and construct a 
-   ** sample list.
-   */
-
   typedef itk::BinaryBallStructuringElement<PixelType,Dimension > StructuringElementType;
   StructuringElementType structuringElement2;  
   structuringElement2.SetRadius( 2 ); 
@@ -447,14 +442,6 @@ int DoIt(std::vector<std::string> inputT1Volumes, std::vector<std::string> input
       flairMedian3Filter->Modified();
       flairMedian3Filter->Update();
  
-      //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      /* The means and stds should be calculated over the lesion and non-lesion voxels
-       ** at the same time, and then used seperately to get the lesion and non-lesion
-       ** samples
-       */
-      //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-      /* Iterator over the lesion masked, brain masked, flair */
       ImageRegionIteratorType flairItr( flairImageHistMatched,flairImageHistMatched->GetRequestedRegion() ); 
 
       size_t count = 0;

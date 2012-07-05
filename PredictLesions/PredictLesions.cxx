@@ -487,14 +487,6 @@ int DoIt(std::string inputT1Volume, std::string inputT2Volume, std::string input
     flairMedian3Filter->Modified();
     flairMedian3Filter->Update();
 
-    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    /* The means and stds should be calculated over the lesion and non-lesion voxels
-     ** at the same time, and then used seperately to get the lesion and non-lesion
-     ** samples
-     */
-    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    /* Iterator over the lesion masked, brain masked, flair */
     ImageRegionIteratorType flairItr( flairImageHistMatched,flairImageHistMatched->GetRequestedRegion() ); 
 
     size_t count = 0;
