@@ -13,7 +13,7 @@ if(NOT Slicer_SOURCE_DIR)
   set(EXTENSION_ICONURL "http://viewvc.slicer.org/viewvc.cgi/Slicer4/trunk/Extensions/Testing/CLIExtensionTemplate/CLIExtensionTemplate.png?revision=19437&view=co")
   set(EXTENSION_SCREENSHOTURLS "http://www.slicer.org/slicerWiki/images/4/4f/TrainModelInterface.png http://www.slicer.org/slicerWiki/images/2/22/PredictModelInterface.png")
   set(EXTENSION_MAJOR_VERSION 0)
-  set(EXTENSION_MINOR_VERSION 2)
+  set(EXTENSION_MINOR_VERSION 3)
   set(EXTENSION_PATCH_VERSION 0)
 endif()
 

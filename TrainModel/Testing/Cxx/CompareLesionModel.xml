@@ -4,7 +4,7 @@
   <title>Compare two lesion segmentation models (for testing).</title> 
 
   <description>Compares two lesion segmentation files.</description>
-  <version>0.2.0</version> 
+  <version>0.3.0</version> 
   <documentation-url>http://www.slicer.org/slicerWiki/index.php?title=Documentation/4.1/Extensions/LesionSegmentation</documentation-url> 
   <license>Slicer http://www.slicer.org/pages/LicenseText</license> 
   <contributor>This tool was developed by Mark Scully (Biomedical Mining, LLC).</contributor> 

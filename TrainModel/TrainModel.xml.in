@@ -4,7 +4,7 @@
   <title>Train a Lesion Segmentation Model</title> 
 
   <description>Creates a model for segmentation of lesions from a list of images, brain masks, and lesion label maps.</description>
-  <version>0.2.0</version> 
+  <version>0.3.0</version> 
   <documentation-url>http://www.slicer.org/slicerWiki/index.php?title=Documentation/4.1/Extensions/LesionSegmentation</documentation-url> 
   <license>Slicer http://www.slicer.org/pages/LicenseText</license> 
   <contributor>This tool was developed by Mark Scully (Biomedical Mining, LLC).</contributor> 

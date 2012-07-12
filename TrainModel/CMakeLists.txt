@@ -16,7 +16,7 @@ if(NOT Slicer_SOURCE_DIR)
   set(MODULE_ICONURL "http://viewvc.slicer.org/viewvc.cgi/Slicer4/trunk/Extensions/Testing/CLIExtensionTemplate/CLIExtensionTemplate.png?revision=19437&view=co")
   set(MODULE_SCREENSHOTURLS "http://www.slicer.org/slicerWiki/images/4/4f/TrainModelInterface.png")
   set(MODULE_MAJOR_VERSION 0)
-  set(MODULE_MINOR_VERSION 2)
+  set(MODULE_MINOR_VERSION 3)
   set(MODULE_PATCH_VERSION 0)
 endif()
 

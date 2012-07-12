@@ -4,7 +4,7 @@
   <title> Predict Lesions </title> 
   
   <description>Creates a predicted lesion mask for a set of co-registered, AC-PC aligned, and bias-corrected T1, T2, and FLAIR images using the provided lesion segmentation model and reference T1, T2, and FLAIR (used for intensity standardization).</description>
-  <version>0.2.0</version> 
+  <version>0.3.0</version> 
   <documentation-url>http://www.slicer.org/slicerWiki/index.php?title=Documentation/4.1/Extensions/LesionSegmentation</documentation-url> 
   <license>Slicer http://www.slicer.org/pages/LicenseText</license> 
   <contributor>This tool was developed by Mark Scully (Biomedical Mining, LLC).</contributor> 
